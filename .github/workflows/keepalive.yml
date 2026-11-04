@@ -1,0 +1,11 @@
+name: keepalive
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render app
+        run: curl -fsS --max-time 20 https://clinicia-demo.onrender.com/api/kpis > /dev/null && echo "alive"
