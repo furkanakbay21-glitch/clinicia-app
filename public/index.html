@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="tr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Clinicia — Sağlık Turizmi ERP</title>
+<link rel="stylesheet" href="styles.css">
+<script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+<div class="app">
+ <aside class="sidebar" id="sidebar">
+ <div class="logo" id="logo-home" style="cursor:pointer" title="Anasayfa"><span class="logo-mark" style="background:none;box-shadow:none"><svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22 10C20.2 7.5 17.3 6 14 6C8.5 6 4 10.5 4 16C4 21.5 8.5 26 14 26C17.3 26 20.2 24.5 22 22" stroke="url(#clinicia-grad)" stroke-width="4" stroke-linecap="round"/><defs><linearGradient id="clinicia-grad" x1="4" y1="6" x2="22" y2="26" gradientUnits="userSpaceOnUse"><stop stop-color="#00C7BE"/><stop offset="1" stop-color="#007AFF"/></linearGradient></defs></svg></span><span class="logo-text">Clinicia<span class="logo-sub">Sağlık Turizmi ERP</span></span></div>
+ <nav id="nav">
+ <div class="nav-group open">
+ <button class="nav-head"><span class="nav-ic">▤</span><span class="nav-tx">Hasta Portföyü ve Cari CRM</span><span class="nav-caret">▾</span></button>
+ <div class="nav-subs">
+ <button class="nav-sub" data-tab="patients">Tüm Hastalar</button>
+ <button class="nav-sub" data-tab="files">Hasta Dosyası ve Evrak Çekmecesi</button>
+ </div>
+ </div>
+ <div class="nav-group">
+ <button class="nav-head"><span class="nav-ic">✉</span><span class="nav-tx">İletişim Merkezi, KVKK ve Anamnez</span><span id="sla-badge" class="badge hidden"></span><span class="nav-caret">▾</span></button>
+ <div class="nav-subs">
+ <button class="nav-sub" data-tab="inbox">Canlı Gelen Kutusu (SLA Takibi)</button>
+ <button class="nav-sub" data-tab="anamnesis">Dinamik Tıbbi Form & KVKK/GDPR Onayı</button>
+ <button class="nav-sub" data-tab="templates">Şablonlar & Otomatik Yanıtlar</button>
+ </div>
+ </div>
+ <div class="nav-group">
+ <button class="nav-head"><span class="nav-ic">✚</span><span class="nav-tx">AI Hekim Havuzu ve Konsültasyon</span><span class="nav-caret">▾</span></button>
+ <div class="nav-subs">
+ <button class="nav-sub" data-tab="medical">Branş Kilitli Doktor Arama</button>
+ <button class="nav-sub" data-tab="rfq">Konsültasyon (RFQ) Yönetimi</button>
+ </div>
+ </div>
+ <div class="nav-group">
+ <button class="nav-head"><span class="nav-ic">✈</span><span class="nav-tx">Operasyon, Lojistik ve Kültürel Gezi</span><span class="nav-caret">▾</span></button>
+ <div class="nav-subs">
+ <button class="nav-sub" data-tab="flights">Canlı Uçuş Takibi ve Radar</button>
+ <button class="nav-sub" data-tab="hotels">Otel Rezervasyonları</button>
+ <button class="nav-sub" data-tab="transfer">VIP Transfer (D2 Yetki & Araç GPS)</button>
+ <button class="nav-sub" data-tab="tour">Kültürel Gezi & Turistik Aktivite</button>
+ <button class="nav-sub" data-tab="field">Saha Karşılama & Dijital Onay Kiosku</button>
+ </div>
+ </div>
+ <div class="nav-group">
+ <button class="nav-head"><span class="nav-ic">₺</span><span class="nav-tx">Finansal Yönetim ve Ön Muhasebe</span><span class="nav-caret">▾</span></button>
+ <div class="nav-subs">
+ <button class="nav-sub" data-tab="finans">Finansal Özet Kokpiti (TCMB & DAB)</button>
+ <button class="nav-sub" data-tab="cari">Cari Hesap Yönetimi</button>
+ <button class="nav-sub" data-tab="fatura">e-Fatura ve e-Arşiv Düzenleme</button>
+ <button class="nav-sub" data-tab="kasabanka">Kasa & Banka Hareketleri</button>
+ <button class="nav-sub" data-tab="budget">Bütçe Sapma ve Net Kârlılık Analizi</button>
+ <button class="nav-sub" data-tab="prim">Hakediş ve Komisyon Takibi</button>
+ </div>
+ </div>
+ <div class="nav-group">
+ <button class="nav-head"><span class="nav-ic">↗</span><span class="nav-tx">Performans ve Pazarlama Analitiği</span><span class="nav-caret">▾</span></button>
+ <div class="nav-subs">
+ <button class="nav-sub" data-tab="marketing">Kampanya Dönüşüm ve Kanal Analizi</button>
+ <button class="nav-sub" data-tab="cac">Ülke Bazlı CAC ve ROAS</button>
+ <button class="nav-sub" data-tab="builder">Hızlı Paket ve Teklif Oluşturucu</button>
+ </div>
+ </div>
+ <div class="nav-group">
+ <button class="nav-head"><span class="nav-ic">§</span><span class="nav-tx">Mevzuat Uyum ve Teşvik Yönetimi</span><span class="nav-caret">▾</span></button>
+ <div class="nav-subs">
+ <button class="nav-sub" data-tab="usha">USHAŞ / EKİP Bildirim & VERBİS Uyum</button>
+ <button class="nav-sub" data-tab="checklist">5448 Teşvik Evrak Kontrol Listesi</button>
+ <button class="nav-sub" data-tab="zipexport">Mevzuata Uygun ZIP Dışa Aktarım</button>
+ </div>
+ </div>
+ <div class="nav-group">
+ <button class="nav-head"><span class="nav-ic">◉</span><span class="nav-tx">Klinik Sonrası Takip ve Destek</span><span id="postop-badge" class="badge hidden"></span><span class="nav-caret">▾</span></button>
+ <div class="nav-subs">
+ <button class="nav-sub" data-tab="postop">Periyodik İzleme (30/60/90/365)</button>
+ <button class="nav-sub" data-tab="alarms">7/24 Medikal Alarm Birimi (BPO)</button>
+ <button class="nav-sub" data-tab="opcal">Ameliyathane & Post-Op Takvimi</button>
+ </div>
+ </div>
+ <div class="nav-group" data-rbac="admin">
+ <button class="nav-head"><span class="nav-ic">⚙</span><span class="nav-tx">Yetki ve Modül Yönetimi</span><span class="nav-caret">▾</span></button>
+ <div class="nav-subs"><button class="nav-sub" data-tab="rbac">Rol-Modül Yetki Matrisi</button>
+ <button class="nav-sub" data-tab="hsys">Sağlık Bakanlığı HSYS Bildirim</button>
+ <button class="nav-sub" data-tab="auditlog">Sistem Audit Logları</button></div>
+ </div>
+ </nav>
+ <div class="sidebar-foot">
+ <select id="role-pick" class="input" style="margin-bottom:8px;font-size:12px">
+ <option value="admin">Acente Sahibi / Yönetici</option>
+ <option value="rep">Satış Danışmanı</option>
+ <option value="ops">Operasyon Danışmanı</option>
+ <option value="finance">Muhasebeci / Finans</option>
+ <option value="field">Saha Görevlisi</option>
+</select>
+<div id="ws-status" class="ws offline">● bağlanıyor…</div>
+ <div class="foot-btns">
+ <button id="theme-toggle" class="icon-btn" title="Tema değiştir">◐</button>
+ <button id="nav-collapse" class="icon-btn" title="Menüyü daralt">⟨</button>
+ </div>
+ </div>
+ </aside>
+ <main class="content">
+ <!-- DASHBOARD (menüde gizli — KPI'lar buradan beslenir) -->
+ <section id="tab-dashboard" class="tab">
+ <div class="page-head"><h1>Anasayfa — Yönetim Kokpiti</h1><span class="page-sub">Hızlı erişim ve anlık operasyon özetleri</span></div>
+ <div class="kpi-grid" id="kpis"></div>
+ <div class="card"><h2>Hızlı Aksiyonlar</h2>
+ <div class="quick-grid">
+ <button class="qcard" onclick="goTab('patients');setTimeout(()=>document.getElementById('pat-search').focus(),80)"><b>➕ Yeni Hasta / Lead</b><span>Formdan hızlı kayıt aç</span></button>
+ <button class="qcard" onclick="goTab('inbox')"><b>✉ Mesajlaşma & Anamnez</b><span>Canlı gelen kutusu · link gönder</span></button>
+ <button class="qcard" onclick="goTab('rfq')"><b>✚ Doktor Teklifi / RFQ</b><span>Branş kilitli hekim havuzu</span></button>
+ <button class="qcard" onclick="goTab('transfer')"><b>✈ VIP Transfer & Karşılama</b><span>Saha kiosk & görev atama</span></button>
+ <button class="qcard" onclick="goTab('invoice')"><b>§ 351 KDV'siz e-Fatura</b><span>Sağlık turizmi istisnalı kesim</span></button>
+ <button class="qcard" onclick="goTab('checklist')"><b>⬡ 5448 Teşvik ZIP</b><span>DYS uyumlu tek tık indirme</span></button>
+ </div></div>
+ <div class="card" id="exec-card"><h2>Executive Kokpit — C-Level Özet</h2><div id="exec-body" class="mut">Yükleniyor…</div></div>
+ <div class="card"><h2>Son Hasta Aktivitesi</h2><div id="recent-timeline" class="list"></div></div>
+ <div class="grid-2">
+ <div class="card"><h2>Müşteri Yolculuğu Hunisi</h2><div id="funnel" class="funnel"></div></div>
+ <div class="card"><h2>Son Aktivite</h2><div id="activity" class="activity"></div></div>
+ </div>
+ </section>
+
+ <!-- 1a. TÜM HASTALAR -->
+ <section id="tab-patients" class="tab active">
+ <div class="page-head"><h1>Tüm Hastalar</h1><span class="page-sub">Ara · filtrele · dosyaya tek tık</span></div>
+ <div class="card" style="margin-bottom:14px">
+ <div class="filter-bar">
+ <input id="pat-search" class="input" placeholder=" Ad / pasaport ara…">
+ <select id="pat-country" class="input"><option value="">Tüm ülkeler</option></select>
+ <select id="pat-stage" class="input"><option value="">Tüm aşamalar</option>
+ <option value="new">Yeni Lead</option><option value="offer_sent">Teklif Bekliyor</option>
+ <option value="agreed">Uçuş/Transfer</option><option value="in_operation">Hastanede</option>
+ <option value="completed">Taburcu / Tamamlandı</option></select>
+ <input id="pat-treat" class="input" placeholder="Tedavi / şikâyet…">
+ </div>
+ </div>
+ <div id="patients-list" class="card"></div>
+ </section>
+
+ <!-- 2a. CANLI GELEN KUTUSU -->
+ <section id="tab-inbox" class="tab">
+ <div class="page-head">
+ <div><h1>Canlı Gelen Kutusu</h1><span class="page-sub">WhatsApp · Instagram · Web · Mail — tek kutu · 15 dk SLA</span></div>
+ <div class="head-actions">
+ <button class="btn ghost" id="notif-btn">Bildirimler <span id="notif-badge" class="badge hidden"></span></button>
+ <button class="btn ghost" id="auto-toggle">Otomatik sim: kapalı</button>
+ <button class="btn primary" id="sim-inbound">+ Mesaj simüle et</button>
+ </div>
+ </div>
+ <div id="notif-panel" class="card hidden"></div>
+ <div class="inbox-layout">
+ <div class="conv-list" id="conv-list"></div>
+ <div class="chat-pane" id="chat-pane"><div class="empty">Bir görüşme seçin</div></div>
+ <div class="conv-side" id="conv-side"><div class="empty">Hasta özeti</div></div>
+ </div>
+ </section>
+
+ <!-- 1b. DOSYA ÇEKMECESİ -->
+ <section id="tab-files" class="tab">
+ <div class="page-head"><h1>Hasta Dosya Çekmecesi</h1><span class="page-sub">Pasaport · Boarding Pass · fatura · sözleşme — hastayı seçip dosyayı açın</span></div>
+ <div class="grid-2">
+ <div class="card"><h2>Hasta Seç</h2>
+ <select id="files-patient" class="input"></select>
+ <button id="files-open" class="btn primary" style="margin-top:10px"> Dosyayı Aç</button>
+ <div class="mut" style="margin-top:10px;font-size:12px">Çekmecede 5 adımlı süreç çubuğu, evrak listesi ve yükleme alanı açılır.</div>
+ </div>
+ <div class="card"><h2>Son Yüklenen Belgeler</h2><div id="files-recent"></div></div>
+ </div>
+ </section>
+
+ <!-- 2b. DİNAMİK ANAMNEZ LİNKİ -->
+ <section id="tab-anamnesis" class="tab">
+ <div class="page-head"><h1>Dinamik Anamnez Linki</h1><span class="page-sub">Şikâyete özel tıbbi form · tek tıkla sohbete gönderim</span></div>
+ <div class="grid-2">
+ <div class="card"><h2>Link Oluştur & Gönder</h2>
+ <div class="mut" style="font-size:13px;margin-bottom:10px">Hastanın şikâyeti okunur; VAS skoru, MR/foto istekleri gibi branşa özel sorularla form üretilir ve sohbete link düşer.</div>
+ <select id="anam-patient" class="input"></select>
+ <button id="anam-create" class="btn primary" style="margin-top:10px"> Anamnez Linki Oluştur & Gönder</button>
+ </div>
+ <div class="card"><h2>Gönderilen Linkler</h2><div id="anam-list"></div></div>
+ </div>
+ </section>
+
+ <!-- 2c. ŞABLONLAR & OTOMATİK YANITLAR -->
+ <section id="tab-templates" class="tab">
+ <div class="page-head"><h1>Şablonlar & Otomatik Yanıtlar</h1><span class="page-sub">Hazır cevaplar · SLA dostu otomatik karşılama</span></div>
+ <div class="grid-2">
+ <div class="card"><h2>Mesaj Şablonları</h2><div id="tpl-list"></div></div>
+ <div class="card"><h2>Otomatik Yanıt</h2>
+ <div class="mut" style="font-size:13px;margin-bottom:10px">Açıkken, gelen her hasta mesajına seçili şablonla otomatik yanıt verilir ve SLA sıfırlanır.</div>
+ <select id="tpl-auto-pick" class="input"></select>
+ <label style="display:flex;align-items:center;gap:8px;margin-top:10px"><input type="checkbox" id="tpl-auto-on"><b>Otomatik yanıt aktif</b></label>
+ <div id="tpl-status" class="mut" style="margin-top:10px;font-size:12px"></div>
+ </div>
+ </div>
+ </section>
+
+ <!-- CRM kanban (menüde gizli) -->
+ <section id="tab-crm" class="tab">
+ <div class="page-head">
+ <div><h1>Müşteri Yolculuğu</h1><span class="page-sub">Kart aç → 5 adımlı durum çubuğunda tüm operasyon</span></div>
+ <button class="btn primary" id="new-patient-btn">+ Yeni Hasta</button>
+ </div>
+ <div class="kanban" id="kanban"></div>
+ </section>
+
+ <!-- 3a. DOKTOR ARAMA & AI EŞLEŞTİRME -->
+ <section id="tab-medical" class="tab">
+ <div class="page-head"><h1>Doktor Arama & AI Eşleştirme</h1><span class="page-sub">Branş-kilitli eşleştirme · güvenli görüş · acenteye özel fiyat</span></div>
+ <div class="filter-bar card">
+ <select id="f-specialty" class="input"><option value="">Branş (tümü)</option></select>
+ <select id="f-title" class="input"><option value="">Unvan (tümü)</option><option>Prof. Dr.</option><option>Doç. Dr.</option><option>Op. Dr.</option><option>Dr.</option><option>Dt.</option></select>
+ <input id="f-city" class="input" placeholder="Şehir" value="Istanbul">
+ <input id="f-hospital" class="input" placeholder="Hastane">
+ <select id="f-org" class="input"><option value="">Kurum tipi</option><option value="hospital">Hastane</option><option value="clinic">Özel Muayenehane/Klinik</option></select>
+ <button class="btn ghost" id="f-search">Ara</button>
+ </div>
+ <div id="f-result" class="list" style="margin-bottom:18px"></div>
+ <div class="grid-2">
+ <div class="card ai-card">
+ <h2>AI ile Doktor Bul</h2>
+ <select id="ai-patient" class="input"></select>
+ <button class="btn primary big" id="ai-match-btn">Hastama Doktor Bul</button>
+ <div id="ai-result"></div>
+ </div>
+ <div class="card">
+ <h2>Kredi Bakiyesi <span id="wallet-credits" class="tag blue"></span></h2>
+ <div class="mut" style="font-size:12px;margin-bottom:8px">Her RFQ için hekime 150 kredi görüş ücreti ödenir (anlaşma şartı aranmaz).</div>
+ <button class="btn ghost mini" id="wallet-topup">+10.000 kredi yükle</button>
+ <div id="wallet-txns" class="list" style="margin-top:8px;max-height:200px"></div>
+ </div>
+ </div>
+ <div class="grid-2">
+ <div class="card">
+ <h2>Hekim Portalı (simülasyon)</h2>
+ <div class="mut" style="font-size:12px;margin-bottom:8px">Hekim, RFQ bildirimindeki "Veri Görüntüleme Şifresi" + KVK/GDPR kimlik doğrulaması ile hasta dosyasına erişir.</div>
+ <input id="dp-rfq" class="input" placeholder="RFQ No">
+ <input id="dp-pass" class="input" placeholder="Görüntüleme şifresi">
+ <input id="dp-idno" class="input" placeholder="Diploma/Sicil No (KVK doğrulama)">
+ <button class="btn primary" id="dp-verify">Doğrula & Dosyayı Gör</button>
+ <div id="dp-result"></div>
+ </div>
+ </div>
+ </section>
+
+ <!-- 3b. GÖNDERİLEN RFQ TEKLİFLERİ -->
+ <section id="tab-rfq" class="tab">
+ <div class="page-head"><h1>Gönderilen RFQ Teklifleri</h1><span class="page-sub">Görüş/fiyat talepleri · KVK doğrulama · acente fiyatı</span></div>
+ <div class="card"><h2>Görüş / Teklif Talepleri (RFQ)</h2><div id="rfq-list" class="list"></div></div>
+ </section>
+
+ <!-- OFFERS (dosyadan kısayolla erişilir) -->
+ <section id="tab-offers" class="tab">
+ <div class="page-head"><h1>Teklif Mektubu, Mobil Onay & Ödeme</h1><span class="page-sub">Zorunlu post-op paket · e-imza · ödeme</span></div>
+ <div class="grid-2">
+ <div class="card">
+ <h2>Teklif Oluştur</h2>
+ <select id="offer-patient" class="input"></select>
+ <input id="offer-treatment" class="input" placeholder="Tedavi kalemi + fiyat (örn: Anjiyoplasti,5200)">
+ <input id="offer-hotel" class="input" placeholder="Otel/konaklama kalemi + fiyat (örn: Hilton 7 gece,1260)">
+ <input id="offer-transport" class="input" placeholder="Ulaşım kalemi + fiyat (örn: Uçak+VIP transfer,350)">
+ <label class="mut" style="font-size:12px">Zorunlu Post-Op Takip Paketi</label>
+ <select id="offer-postop" class="input"></select>
+ <button class="btn primary" id="offer-create">Teklifi Oluştur & Hastaya Gönder</button>
+ </div>
+ <div class="card">
+ <h2>Teklifler</h2>
+ <div id="offer-list" class="list"></div>
+ </div>
+ </div>
+ </section>
+
+ <!-- 4a. CANLI UÇUŞ RADARI -->
+ <section id="tab-flights" class="tab">
+ <div class="page-head"><h1>Canlı Uçuş Radarı & Rötarlar</h1><span class="page-sub">AeroDataBox takibi · ETA · kapı · rötar uyarısı</span></div>
+ <div class="grid-2">
+ <div class="card"><h2>Uçuşlar & Canlı Durum</h2>
+ <select id="bk-patient" class="input" style="margin-bottom:8px"><option value=""> Hasta seçin (bilet için zorunlu)…</option></select>
+ <input type="date" id="flight-date" class="input" style="margin-bottom:8px">
+ <div id="flight-list" class="list"></div></div>
+ <div class="card"><h2>Canlı Takip & Vize</h2>
+ <div id="flight-info" class="gps-status" style="margin-bottom:10px">Uçuş takibi bekleniyor</div>
+ <select id="visa-country" class="input"></select>
+ <div id="visa-result" class="mut" style="font-size:13px;margin:10px 0"></div>
+ <select id="ins-patient" class="input" style="margin-bottom:6px"><option value=""> Hasta seçin (poliçe için zorunlu)…</option></select>
+ <div id="ins-list" class="list"></div>
+ </div>
+ </div>
+ <div class="card"><h2>Rezervasyonlar</h2><div id="booking-list" class="list"></div></div>
+ </section>
+
+ <!-- 4b. OTEL REZERVASYONLARI -->
+ <section id="tab-hotels" class="tab">
+ <div class="page-head"><h1>Otel Rezervasyonları</h1><span class="page-sub">Anlaşmalı oteller · gecelik fiyat · tek tık rezervasyon</span></div>
+ <div class="card"><h2>Oteller</h2>
+ <select id="hotel-patient" class="input" style="margin-bottom:8px"><option value=""> Hasta seçin (rezervasyon için zorunlu)…</option></select>
+ <div id="hotel-list" class="list"></div></div>
+ </section>
+
+ <!-- 4c. VIP TRANSFER & GPS -->
+ <section id="tab-transfer" class="tab">
+ <div class="page-head"><h1>VIP Transfer & GPS Araç Takibi</h1><span class="page-sub">TÜRSAB A Grubu & D2 yetki belgeli görev emri · canlı GPS araç takibi · çakışmasız takvim</span></div>
+ <div class="grid-2">
+ <div class="card"><h2>Canlı Harita</h2>
+ <select id="tr-patient" class="input" style="margin-bottom:6px"><option value=""> Hasta seçin (transfer için zorunlu)…</option></select>
+ <button class="btn ghost" id="transfer-quote-btn">Transfer fiyatı al</button>
+ <div id="transfer-quotes"></div>
+ <svg id="map" viewBox="0 0 100 100" class="map"></svg>
+ <div id="gps-status" class="gps-status">Aktif transfer yok</div>
+ </div>
+ <div class="card">
+ <h2>Şoför/Tercüman Mobil Arayüzü</h2>
+ <select id="drv-agent" class="input"></select>
+ <div id="drv-tasks" class="list"></div>
+ </div>
+ </div>
+ <div class="card">
+ <h2>Personel/Araç Atama Takvimi</h2>
+ <div class="filter-bar" style="margin-bottom:0">
+ <select id="as-agent" class="input"></select>
+ <select id="as-patient" class="input"></select>
+ <input id="as-date" class="input" type="date">
+ <select id="as-slot" class="input"><option>09:00-12:00</option><option>12:00-15:00</option><option>15:00-18:00</option></select>
+ <input id="as-task" class="input" placeholder="Görev (örn: VIP transfer)">
+ <button class="btn primary" id="as-create">Ata</button>
+ </div>
+ <div id="as-conflict" class="mut" style="color:var(--bad);font-size:12px;margin-top:6px"></div>
+ <div id="as-list" class="list" style="max-height:180px"></div>
+ </div>
+ 
+<div class="card"><h2>Tercüman & Saha Görevlisi Takibi</h2>
+<div class="form-2"><select id="ft-agent" class="input"></select><select id="ft-patient" class="input"></select>
+<input id="ft-task" class="input" placeholder="Görev (karşılama, tercümanlık…)"><input id="ft-payout" class="input" type="number" placeholder="Hakediş (€)"></div>
+<button class="btn primary" onclick="createFieldTask()">Görev Ata</button>
+<div id="ft-list" class="list" style="margin-top:10px"></div></div>
+</section>
+
+ <!-- 4d. SAHA KİOSK -->
+ <section id="tab-field" class="tab">
+ <div class="page-head"><h1>Saha Kiosk — Mobil Karşılama</h1><span class="page-sub">Pasaport OCR · dijital KVKK / tıbbi onay imzası</span></div>
+ <div class="grid-2">
+ <div class="card"><h2>Bugünkü Karşılamalar (uçuşlar)</h2><div id="arrival-list" class="list"></div></div>
+ <div class="phone-frame">
+ <div class="phone-notch"></div>
+ <div class="phone-body">
+ <h3 style="margin-top:0">✈ Karşılama Kiosk</h3>
+ <select id="kiosk-patient" class="input"></select>
+ <button class="btn primary" id="kiosk-ocr" style="width:100%"> Pasaportu Tara (OCR)</button>
+ <div id="kiosk-ocr-result"></div>
+ <select id="kiosk-form" class="input" style="margin-top:8px">
+ <option value="kvkk">KVKK Aydınlatma & Onay Formu</option>
+ <option value="consent">Tıbbi Onay (Aydınlatılmış Onam) Formu</option>
+ </select>
+ <div class="mut" style="font-size:12px;margin-top:8px">İmza alanı — parmağınızla/mouse ile imzalayın:</div>
+ <canvas id="sig-pad" width="280" height="120"></canvas>
+ <div style="display:flex;gap:8px;margin-top:8px">
+ <button class="btn ghost mini" id="sig-clear">Temizle</button>
+ <button class="btn primary mini" id="kiosk-sign" style="flex:1">✍ İmzala & Kaydet</button>
+ </div>
+ <div id="kiosk-log" class="mut" style="font-size:12px;margin-top:10px"></div>
+ </div>
+ </div>
+ </div>
+ </section>
+
+ <!-- 5a. FİNANS ÖZET KOKPİTİ -->
+ <section id="tab-finans" class="tab">
+ <div class="page-head"><h1>Finans Özet Kokpiti</h1><span class="page-sub">TCMB canlı kur · kasa/banka · çek-senet · KDV</span></div>
+ <div class="fx-ticker card"><div id="fx-list" class="fx-items"></div></div>
+ <div class="grid-2">
+ <div class="card"><h2>Kasa & Banka</h2><div id="cashbank-list" class="list"></div></div>
+ <div class="card"><h2>Çek / Senet Portföyü</h2><div id="check-list" class="list"></div>
+ <h2 style="margin-top:10px">KDV Raporu</h2><div id="kdv-report" style="font-size:13px"></div></div>
+ </div>
+ </section>
+
+ <!-- 5b. CARİ HESAP YÖNETİMİ -->
+ <section id="tab-cari" class="tab">
+ <div class="page-head"><h1>Cari Hesap Yönetimi</h1><span class="page-sub">Müşteri · klinik · otel · transfer carileri + komisyon alacakları</span></div>
+ <div class="grid-2">
+ <div class="card"><h2>Cari Hesaplar</h2><div id="account-list" class="list"></div><div id="statement-box"></div></div>
+ <div class="card"><h2>Hastane / Klinik Bakiyeleri</h2><div id="clinic-balances" class="list"></div>
+ <h2 style="margin-top:14px">Komisyon Alacakları</h2>
+ <div id="recv-list" class="list"></div>
+ <div class="form-2" style="margin-top:10px">
+ <select id="recv-account" class="input"></select>
+ <select id="recv-patient" class="input"></select>
+ </div>
+ <div class="form-2">
+ <input id="recv-amount" class="input" type="number" placeholder="Tutar (EUR)">
+ <input id="recv-due" class="input" type="date">
+ </div>
+ <button class="btn primary" id="recv-create">Alacak Ekle</button>
+ </div>
+ </div>
+ </section>
+
+ <!-- 5c. FATURA YÖNETİMİ -->
+ <section id="tab-fatura" class="tab">
+ <div class="page-head"><h1>Fatura Yönetimi</h1><span class="page-sub">e-Fatura / e-Arşiv · tevkifat / istisna · İVD aktarımı</span></div>
+ <div class="grid-2">
+ <div class="card"><h2>Fatura Kes (e-Fatura/E-Arşiv)</h2>
+ <select id="inv-patient" class="input"></select>
+ <input id="inv-desc" class="input" placeholder="Hizmet açıklaması" value="Sağlık turizmi paketi">
+ <input id="inv-amount" class="input" type="number" placeholder="Matrah (EUR)" value="4500">
+ <div class="row-2">
+ <input id="inv-vkn" class="input" placeholder="VKN/TCKN">
+ <input id="inv-vd" class="input" placeholder="Vergi Dairesi">
+ </div>
+ <div class="row-2">
+ <select id="inv-scenario" class="input"><option>TICARIFAT</option><option>TEMELFATURA</option><option>EARSIV</option><option>EFATURA</option></select>
+ <select id="inv-type" class="input"><option>SATIS</option><option>IADE</option><option>TEVKIFAT</option><option>ISTISNA</option></select>
+ </div>
+ <div class="row-2">
+ <select id="inv-kdv" class="input"><option value="20">KDV %20</option><option value="10">KDV %10</option><option value="1">KDV %1</option><option value="0">KDV %0</option></select>
+ <input id="inv-isk" class="input" type="number" placeholder="İskonto (EUR)" value="0">
+ </div>
+ <div class="row-2">
+ <select id="inv-pay" class="input"><option>PESIN</option><option>VADELI</option><option>TAKSITLI</option></select>
+ <select id="inv-cashbank" class="input"></select>
+ </div>
+ <button class="btn primary" id="inv-create">Fatura Oluştur</button>
+ </div>
+ <div class="card"><h2>Gelen Fatura (Çözüm Ortağı)</h2>
+ <input id="pin-vendor" class="input" placeholder="Tedarikçi adı">
+ <input id="pin-desc" class="input" placeholder="Açıklama" value="Hastane hizmet bedeli">
+ <input id="pin-amount" class="input" type="number" placeholder="Matrah (EUR)">
+ <input id="pin-vkn" class="input" placeholder="Tedarikçi VKN">
+ <button class="btn ghost" id="pin-create">İçe Al (Gider)</button>
+ </div>
+ </div>
+ <div class="card"><h2>Faturalar & İVD</h2><div id="invoice-list" class="list"></div></div>
+ </section>
+
+ <!-- 5d. KASA & BANKA HAREKETLERİ -->
+ <section id="tab-kasabanka" class="tab">
+ <div class="page-head"><h1>Kasa & Banka Hareketleri</h1><span class="page-sub">Gelir / gider işlem akışı</span></div>
+ <div class="card"><h2>Gelir / Gider Hareketleri</h2><div id="txn-list" class="list"></div></div>
+ </section>
+
+ <!-- 5e. NET KÂR & BÜTÇE SAPMA -->
+ <section id="tab-budget" class="tab">
+ <div class="page-head"><h1>Net Kâr & Bütçe Sapma Analizi</h1><span class="page-sub">Hasta/paket bazlı kâr · tahmini vs gerçekleşen maliyet</span></div>
+ <div id="var-summary" class="kpi-grid"></div>
+ <div class="grid-2">
+ <div class="card"><h2>Net Kâr Hesaplayıcı</h2>
+ <select id="profit-patient" class="input"></select>
+ <button class="btn ghost" id="profit-calc">Hesapla</button>
+ <div id="profit-result"></div></div>
+ <div class="card"><h2>Marj Analizi</h2><div id="margin-list" class="list"></div></div>
+ </div>
+ <div class="card"><h2>Hasta Bazlı Sapma Analizi</h2><div id="var-list"></div></div>
+ </section>
+
+ <!-- 5f. PRİM & KOMİSYON -->
+ <section id="tab-prim" class="tab">
+ <div class="page-head"><h1>Prim & Komisyon Hakedişleri</h1><span class="page-sub">Temsilci primleri · B2B sub-agent komisyonları</span></div>
+ <div class="grid-2">
+ <div class="card"><h2>Prim/Komisyon Kuralları</h2><div id="comm-list" class="list"></div></div>
+ <div class="card"><h2>B2B Sub-Agent Portalı</h2>
+ <div id="subagent-list" class="list"></div>
+ <div style="display:flex;gap:8px;margin:10px 0">
+ <select id="sa-patient" class="input"></select>
+ <select id="sa-assign" class="input" style="width:170px"></select>
+ <button class="btn ghost mini" id="sa-assign-btn">Hasta ata</button>
+ </div>
+ <div id="subagent-detail" class="mut">Acente seçin.</div>
+ <h2 style="margin-top:14px">Yeni Sub-Agent</h2>
+ <input id="sa-name" class="input" placeholder="Acente adı">
+ <div class="form-2">
+ <input id="sa-country" class="input" placeholder="Ülke">
+ <input id="sa-pct" class="input" type="number" placeholder="Komisyon %" value="10">
+ </div>
+ <input id="sa-contact" class="input" placeholder="İletişim">
+ <button class="btn primary" id="sa-create">Kaydet</button>
+ </div>
+ </div>
+ </section>
+
+ <!-- 6a. KAMPANYA DÖNÜŞÜM -->
+ <section id="tab-marketing" class="tab">
+ <div class="page-head"><h1>Kampanya Dönüşüm Analizi</h1>
+ <span class="page-sub">Meta & Google · ROAS</span>
+ <span style="flex:1"></span>
+ <button class="btn primary" id="mkt-sync">⟳ Meta & Google Senkronize</button></div>
+ <div id="mkt-kpis" class="kpi-grid"></div>
+ <div class="card"><h2>Kampanyalar</h2><div id="mkt-camps" class="list"></div>
+ <h2 style="margin-top:12px">Yeni Kampanya</h2>
+ <div class="form-2">
+ <select id="mc-channel" class="input"><option value="meta">Meta Ads</option><option value="google">Google Ads</option></select>
+ <select id="mc-country" class="input"></select>
+ <input id="mc-name" class="input" placeholder="Kampanya adı">
+ <input id="mc-spend" class="input" type="number" placeholder="Bütçe (EUR)">
+ </div>
+ <button class="btn ghost" id="mc-create">Kampanya Ekle</button>
+ </div>
+ </section>
+
+ <!-- 6b. ÜLKE BAZLI CAC -->
+ <section id="tab-cac" class="tab">
+ <div class="page-head"><h1>Ülke Bazlı Hasta Edinme Maliyeti</h1><span class="page-sub">CAC · ROAS · ciro dönüşümü</span></div>
+ <div class="card"><h2>Ülke Bazlı Dönüşüm — CAC / ROAS</h2><div id="mkt-countries"></div></div>
+ </section>
+
+ <!-- 6c. PAKET & TEKLİF -->
+ <section id="tab-builder" class="tab">
+ <div class="page-head"><h1>Hızlı Paket Oluşturucu</h1><span class="page-sub">Şablonlu teklif mektubu · çoklu dil · tek tıkla gönderim</span></div>
+ <div class="grid-2">
+ <div class="card"><h2>Paket Kur</h2>
+ <div class="form-2">
+ <select id="pb-patient" class="input"></select>
+ <select id="pb-treatment" class="input"></select>
+ <select id="pb-stars" class="input"><option value="3">3★ Otel</option><option value="4" selected>4★ Otel</option><option value="5">5★ Otel</option></select>
+ <input id="pb-nights" class="input" type="number" value="3" min="1" placeholder="Gece">
+ <select id="pb-transfer" class="input"><option value="sedan">Sedan</option><option value="vito" selected>VIP Vito</option><option value="sprinter">Sprinter (grup)</option></select>
+ <select id="pb-postop" class="input"></select>
+ <select id="pb-lang" class="input"><option value="en"> English</option><option value="tr"> Türkçe</option><option value="ar"> العربية</option><option value="de"> Deutsch</option><option value="ru"> Русский</option></select>
+ </div>
+ <div id="pb-preview" class="mut" style="margin:10px 0"></div>
+ <button class="btn primary" id="pb-build"> Teklif Oluştur</button>
+ <div id="pb-result"></div>
+ </div>
+ <div class="card"><h2>Son Teklifler</h2><div id="pb-offers" class="list"></div></div>
+ </div>
+ </section>
+
+ <!-- 7a. USHAŞ / İVD -->
+ <section id="tab-usha" class="tab">
+ <div class="page-head"><h1>USHAŞ / İVD Yasal Bildirim Paneli</h1><span class="page-sub">Zorunlu alan kontrolü · USH-2026 referans</span></div>
+ <div class="card">
+ <h2>USHAŞ Bildirimi</h2>
+ <select id="usha-patient" class="input"></select>
+ <button class="btn primary" id="usha-send">USHAŞ'a Bildir</button>
+ <div id="usha-list" class="list"></div>
+ </div>
+ </section>
+
+ <!-- 7b. 5448 CHECKLIST -->
+ <section id="tab-checklist" class="tab">
+ <div class="page-head"><h1>5448 Sayılı Teşvik Evrak Checklist</h1><span class="page-sub">4 zorunlu evrak · eksikse havuz aktarımı engellenir</span></div>
+ <div class="card">
+ <h2>Teşvik Paketi (Ticaret Bakanlığı)</h2>
+ <select id="inc-patient" class="input"></select>
+ <button class="btn ghost" id="inc-check">Zorunlu evrak kontrol listesi</button>
+ <div id="inc-checklist"></div>
+ <div id="inc-warn" style="color:var(--bad);font-size:12px;margin:6px 0"></div>
+ <button class="btn primary" id="inc-package" disabled>Havuza aktar & paketle</button>
+ </div>
+ </section>
+
+ <!-- 7c. ZIP EXPORT -->
+ <section id="tab-zipexport" class="tab">
+ <div class="page-head"><h1>Teşvik ZIP Export</h1><span class="page-sub">Mevzuata uygun dosya adlandırma · tek tık</span></div>
+ <div class="grid-2">
+ <div class="card">
+ <h2>ZIP Arşivi Oluştur</h2>
+ <div class="mut" style="font-size:12px;margin-bottom:10px">Arşiv: 01_BoardingPass / 02_Pasaport / 03_HastaneFaturasi / 04_HizmetSozlesmesi / 05_Faturalar + manifest.</div>
+ <select id="zx-patient" class="input"></select>
+ <button class="btn primary" id="inc-export"> Teşvik ZIP İndir</button>
+ </div>
+ <div class="card"><h2>Teşvik Paketleri</h2><div id="inc-list" class="list"></div></div>
+ </div>
+ </section>
+
+ <!-- 8a. POST-OP İZLEME -->
+ <section id="tab-postop" class="tab">
+ <div class="page-head"><h1>30/60/90 Günlük Post-Op İzleme</h1><span class="page-sub">Check-in akışı · ağrı skoru · memnuniyet</span></div>
+ <div class="grid-2">
+ <div class="card"><h2>Post-Op Hastalar</h2><div id="postop-list" class="list"></div></div>
+ <div class="card"><h2>Hasta Takibi</h2><div id="postop-detail" class="mut">Hasta seçin — check-in akışı ve risk analizi burada görünür.</div></div>
+ </div>
+ </section>
+
+ <!-- 8b. BPO KIRMIZI ALARMLAR -->
+ <section id="tab-alarms" class="tab">
+ <div class="page-head"><h1>BPO Sağlık Destek Birimi — Kırmızı Alarmlar</h1><span class="page-sub">7/24 medikal ekip onaylı acil müdahale akışı</span></div>
+  <div id="postop-alerts"></div>
+ <div class="card"><div class="mut">Komplikasyon riski algılanan hastalar burada kırmızı alarm olarak düşer; 7/24 medikal ekip onayıyla görüntülü görüşme / arama aksiyonu başlatılır. Post-Op İzleme ekranından "Riskli check-in sim" ile demo alarm üretebilirsiniz.</div></div>
+ </section>
+
+ 
+ <section id="tab-tour" class="tab">
+ <div class="page-head"><h1>Kültürel Gezi ve Turistik Aktivite Planlayıcı</h1><span class="page-sub">TÜRSAB A Grubu uyumlu · Kokartlı rehber · ameliyat öncesi/sonrası program</span></div>
+ <div class="grid-2">
+ <div class="card"><h2>Tur Tanımla</h2>
+ <select id="tour-patient" class="input"><option value=""> Hasta seçin (tur için zorunlu)…</option></select>
+ <select id="tour-program" class="input">
+ <option value="Sultanahmet Tarihi Yarımada Turu">Sultanahmet Tarihi Yarımada Turu</option>
+ <option value="Boğaz Yat Turu">Boğaz Yat Turu</option>
+ <option value="Kapalıçarşı & Beyoğlu Turu">Kapalıçarşı & Beyoğlu Turu</option>
+ <option value="Kapadokya Günübirlik Tur">Kapadokya Günübirlik Tur</option>
+ </select>
+ <div class="row-2"><select id="tour-guide" class="input">
+ <option value="Ayşe K. (İng/Alm Kokartlı)">Ayşe K. (İng/Alm Kokartlı)</option>
+ <option value="Mehmet D. (İng/Arap Kokartlı)">Mehmet D. (İng/Arap Kokartlı)</option>
+ <option value="Elena V. (İng/Rus Kokartlı)">Elena V. (İng/Rus Kokartlı)</option></select>
+ <input id="tour-price" class="input" type="number" placeholder="Ücret (EUR)" value="120"></div>
+ <select id="tour-timing" class="input"><option value="pre-op">Ameliyat öncesi</option><option value="post-op">Ameliyat sonrası</option></select>
+ <button class="btn primary bkbtn" data-k="tour" onclick="createTour()" disabled>Tur Oluştur</button>
+ </div>
+ <div class="card"><h2>Planlanan Turlar</h2><div id="tour-list" class="list"></div></div>
+ </div>
+ 
+ 
+ <section id="tab-affiliates" class="tab">
+ <div class="page-head"><h1>B2B Alt-Acente ve Referans Portalı</h1><span class="page-sub">Yurt dışı partnerler · getirilen hastalar · komisyon & hakediş şeffaflığı</span></div>
+ <div id="aff-list" class="grid-2"></div>
+ </section>
+<section id="tab-rbac" class="tab">
+ <div class="page-head"><h1>Yetki ve Modül Yönetimi</h1><span class="page-sub">Rol bazlı modül erişim matrisi — OFF modül menüden gizlenir ve API 403 döner</span></div>
+ <div class="card"><h2>Rol × Modül Yetki Matrisi</h2><div id="rbac-matrix" class="tbl"></div>
+ <div class="mut" style="margin-top:10px">Değişiklikler anında geçerlidir — rol değiştirmek için sol alt menüdeki rol seçiciyi kullanın.</div></div>
+ </section>
+ </section>
+
+ <section id="tab-opcal" class="tab">
+ <div class="page-head"><h1>Ameliyathane & Post-Op Takvimi</h1><span class="page-sub">Oda çakışma kontrolü · 30/90/180/365 takip</span></div>
+ <div class="grid-2">
+ <div class="card"><h2>Operasyon Planla</h2>
+ <select id="oc-patient" class="input"></select>
+ <input id="oc-label" class="input" placeholder="Operasyon (örn: Saç Ekimi FUE)">
+ <input id="oc-date" class="input" type="datetime-local">
+ <select id="oc-room" class="input"><option>Ameliyathane-1</option><option>Ameliyathane-2</option><option>Endoskopi Ünitesi</option></select>
+ <button class="btn primary" id="oc-create">Planla</button>
+ <div id="oc-list" class="list" style="margin-top:10px"></div></div>
+ <div class="card"><h2>Post-Op Takip Programı</h2><div id="oc-postop" class="list"></div></div>
+ </div>
+ </section>
+ <section id="tab-hsys" class="tab">
+ <div class="page-head"><h1>Sağlık Bakanlığı HSYS / SYGM Bildirimleri</h1><span class="page-sub">Uluslararası hasta bildirim formatı · KVKK onam arşivi</span></div>
+ <div class="card"><div id="hsys-list" class="list"></div></div>
+ </section>
+ <section id="tab-auditlog" class="tab">
+ <div class="page-head"><h1>Sistem Audit Logları</h1><span class="page-sub">Tüm veri değişiklikleri · rol bazlı kayıt</span></div>
+ <div class="card"><div id="audit-list" class="list"></div></div>
+ </section>
+ </main>
+
+ <!-- Hasta dosya çekmecesi (workspace) -->
+ <div id="workspace" class="workspace">
+ <div class="ws-head">
+ <div style="display:flex;align-items:center;gap:14px">
+ <div class="ws-avatar" id="ws-avatar">—</div>
+ <div><h2 id="ws-name">—</h2><div class="mut" id="ws-meta">—</div></div>
+ </div>
+ <div class="ws-head-right">
+ <select id="ws-lead" class="input"></select>
+ <button class="icon-btn" onclick="closeWs()" title="Kapat">✕</button>
+ </div>
+ </div>
+ <div class="ws-tabs">
+ <button class="wstab on" data-ws="ozet"> Özet & Aksiyon</button>
+ <button class="wstab" data-ws="evrak"> Evraklar</button>
+ <button class="wstab" data-ws="iletisim"> İletişim & Çağrı</button>
+ <button class="wstab" data-ws="audit"> İşlem Geçmişi</button>
+ </div>
+ <div class="ws-steps" id="ws-steps"></div>
+ <div id="ws-evrak" class="wspane hidden"></div>
+ <div id="ws-iletisim" class="wspane hidden"></div>
+ <div id="ws-audit" class="wspane hidden"></div>
+ </div>
+
+ <div id="toast"></div>
+
+ <!-- Hipokrat AI asistan -->
+ <button id="hipokrat-btn" title="Hipokrat AI"><img src="/assets/hipokrat.png" alt="Hipokrat"></button>
+ <div id="hipokrat-panel" class="hidden">
+ <div class="hk-head"><img src="/assets/hipokrat.png" alt=""><div><b>Hipokrat</b><span>AI operasyon asistanı</span></div><button id="hk-close" class="icon-btn">✕</button></div>
+ <div id="hk-msgs"></div>
+ <form id="hk-form"><input id="hk-input" class="input" placeholder="Sorunuzu yazın…"><button class="btn primary" type="submit">→</button></form>
+ </div>
+
+ <script src="/app.js"></script>
+ </body>
+ </html>
