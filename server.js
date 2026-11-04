@@ -2235,4 +2235,9 @@ app.get('/api/pass/push/:token', (req, res) => {
   res.json(all('SELECT * FROM push_notes WHERE patient_id=? ORDER BY id DESC LIMIT 5', p.id));
 });
 
+// Render free-tier keepalive: self-ping every 10 min so the service never sleeps
+const SELF_URL = process.env.RENDER_EXTERNAL_URL;
+if (SELF_URL) {
+  setInterval(() => fetch(SELF_URL + '/api/kpis').then(r => console.log('[keepalive]', r.status)).catch(() => {}), 10 * 60 * 1000);
+}
 server.listen(PORT, () => console.log('HTA ERP listening on http://localhost:' + PORT));
