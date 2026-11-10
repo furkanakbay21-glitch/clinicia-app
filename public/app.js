@@ -64,7 +64,7 @@ async function loadConvs() {
  conversations = await api('/api/conversations');
  $('#conv-list').innerHTML = conversations.map(c => `
  <div class="conv-item ${activeConv === c.id ? 'active' : ''}" onclick="openConv(${c.id})">
- <div class="top"><span class="name">${esc(c.patient_name)}</span><span class="ch">${CH_ICON[c.channel] || c.channel}</span></div>
+ <div class="top"><span class="name plink" data-pid="${c.patient_id}">${esc(c.patient_name)}</span><span class="ch">${CH_ICON[c.channel] || c.channel}</span></div>
  <div class="top"><span class="prev">${esc(c.last_body || '')}</span>
  <span class="sla" data-deadline="${c.sla_deadline || ''}" data-responded="${c.sla_responded}"></span></div>
  <div class="prev">${c.agent_name ? ' ' + esc(c.agent_name) : 'atanmadı'} · ${c.masked_phone ? ' ' + esc(c.masked_phone) : ''} · ${FLAG[c.language] || ''} ${esc(c.language || '')}</div>
@@ -86,7 +86,7 @@ window.openConv = async id => {
  if (!c) return;
  const msgs = await api(`/api/conversations/${id}/messages`);
  $('#chat-pane').innerHTML = `
- <div class="chat-head"><span><b>${esc(c.patient_name)}</b>
+ <div class="chat-head"><span><b class="plink" data-pid="${c.patient_id}">${esc(c.patient_name)}</b>
  <span class="mut" style="font-size:12px"> · ${esc(c.masked_phone || 'maskeli hat')} · ${esc(c.agent_name || 'atanmadı')} · ${FLAG[c.language] || ''} ${esc(c.language || '')}</span></span>
  <span class="ch">${CH_ICON[c.channel]}</span></div>
  <div class="chat-body">${msgs.map(m => `
@@ -128,7 +128,7 @@ window.sendAnamnesis = async (pid, cid) => {
 async function loadAnamnesis() {
  const el = $('#anam-list'); if (!el) return;
  const list = await api('/api/anamnesis');
- el.innerHTML = list.map(a => `<div class="li"><span><b>${esc(a.patient_name)}</b>
+ el.innerHTML = list.map(a => `<div class="li"><span><b class="plink" data-pid="${a.patient_id}">${esc(a.patient_name)}</b>
  <div class="mut">${esc(a.specialty)} · ${a.lang} · <a href="/a/${a.token}" target="_blank">/a/${a.token}</a></div></span>
  <span class="tag ${a.status === 'submitted' ? 'green' : 'yellow'}">${a.status === 'submitted' ? ' dolduruldu' : ' bekliyor'}</span></div>`).join('')
  || '<div class="mut">Henüz link üretilmedi</div>';
@@ -141,7 +141,7 @@ async function loadRecentFiles() {
  const el = $('#files-recent'); if (!el) return;
  const files = await api('/api/files');
  el.innerHTML = files.map(f => `<div class="li"><span> ${esc(f.filename)}
- <div class="mut">${esc(f.patient_name)} · ${esc(f.category)} · ${esc(f.uploaded_at || '')}</div></span>
+ <div class="mut"><span class="plink" data-pid="${f.patient_id}">${esc(f.patient_name)}</span> · ${esc(f.category)} · ${esc(f.uploaded_at || '')}</div></span>
  ${f.path ? `<a class="btn ghost mini" href="${f.path}" target="_blank">Aç</a>` : ''}</div>`).join('')
  || '<div class="mut">Dosya yok</div>';
 }
@@ -266,8 +266,19 @@ window.goTab = goTab;
 const FLAG = { en: '', de: '', fr: '', ar: '', ru: '', tr: '', fa: '', es: '' };
 const CFLAG = { 'United Kingdom': '', 'Germany': '', 'France': '', 'Russia': '', 'Turkey': '', 'Iran': '', 'Qatar': '', 'UAE': '', 'Saudi Arabia': '', 'Kuwait': '', 'Iraq': '', 'USA': '', 'Spain': '' };
 
-// ---------- Hasta Çalışma Alanı: 7 kronolojik adım ----------
-window.openDrawer = async id => { WS_PID = id;
+// ---------- Unified Patient Master File: global context + 4-sekmeli drawer ----------
+document.addEventListener('click', e => {
+ const el = e.target.closest('.plink[data-pid]');
+ if (el) { e.preventDefault(); openDrawer(+el.dataset.pid); }
+});
+
+window.GP = null; // Global Patient ID — paneller arası bağ
+window.setGlobalPatient = pid => { GP = pid;
+ // Hastayı içeren tüm select'leri global hastaya sabitle (sıfır tekrar giriş)
+ $$('select').forEach(s => { if (s.id === 'ws-lead') return;
+  if ([...s.options].some(o => +o.value === pid)) { if (+s.value !== pid) { s.value = pid; s.dispatchEvent(new Event('change')); } } });
+};
+window.openDrawer = async id => { WS_PID = id; setGlobalPatient(id);
  const d = await api(`/api/patients/${id}/dossier`);
  const p = d.patient;
  const flights = d.bookings.filter(b => b.kind === 'flight');
@@ -275,54 +286,6 @@ window.openDrawer = async id => { WS_PID = id;
  const transfers = d.bookings.filter(b => b.kind === 'transfer');
  const conv = d.conversations[0];
  const latestOffer = d.offers[0];
- const steps = [
- { done: conv && conv.sla_responded, n: 1, t: 'Lead & Talep', s: 'İletişim · çeviri · 15 dk SLA',
- b: conv ? `<div class="ws-row"><span>${CH_ICON[conv.channel] || conv.channel} ${FLAG[conv.language] || ''} ${esc(conv.language || '')}
- <div class="mut"> ${esc(conv.agent_name || 'atanmadı')} · ${esc(conv.masked_phone || 'maskeli')}</div></span>
- <span class="sla" data-deadline="${conv.sla_deadline || ''}" data-responded="${conv.sla_responded}"></span></div>
- <div class="ws-actions"><button class="btn ghost mini" onclick="closeWs();goTab('inbox')">Gelen kutusuna git →</button></div>`
- : '<div class="mut">Henüz görüşme yok</div>' },
- { done: d.rfqs.some(r => r.status === 'responded'), n: 2, t: 'Tıbbi Değerlendirme', s: 'Hekimler · şifreli görüş · RFQ',
- b: (d.rfqs.map(r => `<div class="ws-row"><span>${esc(r.doctor_name)} · ${esc(r.specialty)}<div class="mut">${esc(r.hospital)}</div></span>
- <span class="tag ${r.status === 'responded' ? 'green' : r.status === 'declined' ? 'red' : 'yellow'}">${r.status}${r.quote_price ? ' · ' + fmt(r.quote_price) : ''}</span></div>`).join('')
- || '<div class="mut">RFQ gönderilmedi</div>')
- + `<div class="ws-actions"><button class="btn ghost mini" onclick="closeWs();goTab('medical')">Hekim havuzu →</button></div>` },
- { done: latestOffer && latestOffer.status === 'paid', n: 3, t: 'Acente Teklifi & Onay', s: 'Paket · zorunlu post-op · e-imza · ödeme',
- b: (d.offers.map(o => `<div class="ws-row"><span>Teklif #${o.id} · ${fmt(o.total)}<div class="mut">${esc(o.postop_name || '')}${o.e_signature ? ' · ' + o.e_signature : ''}</div></span>
- <span class="tag ${{ draft: 'yellow', sent: 'blue', approved: 'violet', paid: 'green' }[o.status] || 'yellow'}">${o.status}</span></div>`).join('')
- || '<div class="mut">Teklif oluşturulmadı</div>')
- + `<div class="ws-actions">${latestOffer && latestOffer.status === 'sent' ? `<button class="btn ghost mini" onclick="offerAction(${latestOffer.id},'approve');setTimeout(()=>openDrawer(${p.id}),400)"> Mobil onay sim</button>` : ''}
- ${latestOffer && latestOffer.status === 'approved' ? `<button class="btn primary mini" onclick="offerAction(${latestOffer.id},'pay');setTimeout(()=>openDrawer(${p.id}),400)"> Ödeme al</button>` : ''}
- <button class="btn ghost mini" onclick="closeWs();goTab('offers')">Teklif oluştur →</button></div>` },
- { done: flights.length > 0, n: 4, t: 'Lojistik & Vize', s: 'Vize muafiyeti · uçuş takibi · otel',
- b: (d.visa_rule ? `<div class="chip ${d.visa_rule.rule && d.visa_rule.rule.includes('vizesiz') ? 'ok' : 'warn'}"> ${esc(p.nationality)}: ${esc(d.visa_rule.rule)}</div>` : `<div class="chip warn"> ${esc(p.nationality)}: vize kuralı tanımsız</div>`)
- + flights.map(b => `<div class="ws-row"><span>✈ ${esc(b.ref_label || '')}</span><span class="flight-live" id="dfs-${b.id}">${esc(b.flight_status || 'Scheduled')}</span></div>`).join('')
- + hotels.map(b => `<div class="ws-row"><span> ${esc(b.ref_label || '')}</span><span class="mut">${fmt(b.price)}</span></div>`).join('')
- + (!flights.length && !hotels.length ? '<div class="mut" style="margin-top:6px">Rezervasyon yok</div>' : '')
- + `<div class="ws-actions"><button class="btn ghost mini" onclick="closeWs();goTab('logistics')">Operasyon kokpiti →</button></div>` },
- { done: d.driver_tasks.length > 0 && d.driver_tasks.every(t => t.status === 'done'), n: 5, t: 'VIP Transfer & Şoför', s: 'Canlı GPS · çakışmasız takvim',
- b: (d.driver_tasks.map(t => `<div class="ws-row"><span>${t.seq}. ${esc(t.label)}<div class="mut">${esc(t.agent_name || '')} · ${esc(t.ref_label || '')}</div></span>
- <span class="chip ${t.status === 'done' ? 'ok' : t.status === 'in_progress' ? 'acc' : ''}">${t.status === 'done' ? '✓ tamam' : t.status === 'in_progress' ? 'yolda' : 'bekliyor'}</span></div>`).join('')
- || '<div class="mut">Transfer görevi yok</div>')
- + `<div class="ws-actions"><button class="btn ghost mini" onclick="closeWs();goTab('logistics')">Canlı harita →</button></div>` },
- { done: d.invoices.some(i => i.status === 'sent_ivd'), n: 6, t: 'Hastane & Fatura', s: 'e-Fatura · İVD · gelir/gider',
- b: (d.invoices.map(i => `<div class="ws-row"><span>${i.number}<div class="mut">${i.direction === 'purchase' ? 'GELEN' : 'SATIŞ'} · ${fmt(i.amount)}${i.kdv_amount ? ' · KDV ' + fmt(i.kdv_amount) : ''}</div></span>
- ${i.status === 'sent_ivd' ? `<span class="tag green">İVD ✓</span>` : `<button class="btn ghost mini" onclick="sendIvd(${i.id});setTimeout(()=>openDrawer(${p.id}),1200)">İVD'ye gönder</button>`}</div>`).join('')
- || '<div class="mut">Fatura yok</div>')
- + `<div class="ws-row" style="background:var(--acc-soft)"><span><b>Hasta carisi</b></span><b id="ws-cari">…</b></div>` },
- { done: d.checklist.complete, n: 7, t: 'Teşvik & Arşiv', s: 'Evrak checklist · USHAŞ · zip export',
- b: d.checklist.docs.map(x => `<div class="checkline ${x.present ? 'done' : 'miss'}"><span class="tick">${x.present ? '✓' : '✗'}</span>${esc(x.doc)}</div>`).join('')
- + (d.checklist.docs.filter(x => !x.present).length ? `<div class="chip bad" style="margin:6px 0"> ${d.checklist.docs.filter(x => !x.present).length} eksik evrak — havuza aktarılamaz</div>` : `<div class="chip ok" style="margin:6px 0">Evraklar tam ✓</div>`)
- + d.usha.map(u => `<div class="ws-row"><span>USHAŞ ${u.status === 'acknowledged' ? '✓' : '…'}</span><span class="mut">${u.usha_ref || 'bekliyor'}</span></div>`).join('')
- + `<div class="ws-actions">
- <a class="btn ghost mini" href="/api/incentive/export/${p.id}" target="_blank"> Teşvik ZIP export</a>
- <button class="btn ghost mini" onclick="closeWs();goTab('compliance')">Uyum paneli →</button></div>
- <form onsubmit="return uploadFile(${p.id},this)" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
- <input type="file" name="file" class="input" style="flex:2;margin:0">
- <select name="category" class="input" style="flex:1;margin:0"><option value="passport">Pasaport</option><option value="boarding_pass">Boarding Pass</option><option value="radiology">Radyoloji</option><option value="invoice">Fatura</option><option value="contract">Sözleşme</option><option value="other">Diğer</option></select>
- <button class="btn ghost mini" type="submit">Yükle</button></form>` },
- ];
- const firstOpen = steps.findIndex(s => !s.done);
  const stage = p.lead_status === 'completed' || p.postop_since ? 5
  : p.lead_status === 'in_operation' ? 4
  : p.lead_status === 'agreed' || d.bookings.length ? 3
@@ -333,66 +296,35 @@ window.openDrawer = async id => { WS_PID = id;
  $('#ws-meta').innerHTML = `${CFLAG[p.nationality] || ''} ${esc(p.nationality)} · Pasaport ${esc(p.passport_no || '—')} · ${esc(p.complaint_tr || p.complaint || '')}${p.ops_agent_name ? ' · Operasyon: <b>' + esc(p.ops_agent_name) + '</b>' : p.sales_agent_name ? ' · Danışman: ' + esc(p.sales_agent_name) : ''} · Cari: <b style="color:${cari.balance >= 0 ? 'var(--ok)' : '#d9392b'}">${fmt(cari.balance)}</b>`;
  $('#ws-lead').innerHTML = LEADS.map(([s, n]) => `<option value="${s}" ${p.lead_status === s ? 'selected' : ''}>${n}</option>`).join('');
  $('#ws-lead').onchange = e => setLead(p.id, e.target.value);
- // sade 5 adımlı durum çubuğu + evrak + özet
+ // 7 adımlı durum çubuğu + renk kodlu durum kartları
  $('#ws-steps').innerHTML = `
  <div class="steps5">${['Lead', 'KVKK & Anamnez', 'Medikal / RFQ', 'Sözleşme', 'Lojistik', 'Hastane & Fatura', 'Teşvik & Post-Op'].map((t, i) => `
  <div class="st ${i + 1 < stage ? 'done' : i + 1 === stage ? 'active' : ''}">
  <span class="dot">${i + 1 < stage ? '✓' : i + 1}</span><div class="lbl">${t}</div></div>`).join('')}</div>
- <div class="ws-simple">
- <div class="card"><h3> Evraklar</h3>${d.files.some(f=>f.filename.startsWith('KVKK_Onay')) ? '<div class="chip ok" style="margin:0 0 8px">KVKK Onaylandı ✓</div>' : '<div class="chip warn" style="margin:0 0 8px">KVKK onayı bekleniyor</div>'}
- ${d.checklist.docs.map(x => `<div class="checkline ${x.present ? 'done' : 'miss'}"><span class="tick">${x.present ? '✓' : '✗'}</span>${esc(x.doc)}</div>`).join('')}
- ${(d.checklist.supporting || []).map(x => `<div class="checkline ${x.present ? 'done' : 'miss'}"><span class="tick">${x.present ? '' : '✗'}</span>${esc(x.doc)}</div>`).join('')}
- ${d.files.map(f => `<div class="checkline done"><span class="tick"></span>${esc(f.filename)} <span class="mut">${esc(f.category)}</span></div>`).join('')}
- ${d.checklist.docs.filter(x => !x.present).length ? `<div class="chip bad" style="margin:8px 0"> ${d.checklist.docs.filter(x => !x.present).length} eksik evrak</div>` : `<div class="chip ok" style="margin:8px 0">Evraklar tam ✓</div>`}
- ${d.anamnesis && d.anamnesis.length ? `<h3 style="margin:12px 0 6px"> Anamnez</h3>` + d.anamnesis.map(a => a.status === 'submitted'
- ? `<div class="anam-box"> ${esc(a.submitted_at || '')} · ${esc(a.specialty || '')}${Object.entries(JSON.parse(a.answers || '{}')).map(([k, v]) => `<div class="mut" style="font-size:12px"><b>${esc(k)}:</b> ${esc(v)}</div>`).join('')}</div>`
- : `<div class="mut" style="font-size:12px;margin:4px 0"> Bekliyor — <a href="/a/${a.token}" target="_blank">/a/${a.token}</a></div>`).join('') : ''}
- <form onsubmit="return uploadFile(${p.id},this)" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
- <input type="file" name="file" class="input" style="flex:2;margin:0">
- <select name="category" class="input" style="flex:1;margin:0"><option value="passport">Pasaport</option><option value="boarding_pass">Boarding Pass</option><option value="radiology">Radyoloji</option><option value="invoice">Fatura</option><option value="contract">Sözleşme</option><option value="other">Diğer</option></select>
- <button class="btn ghost mini" type="submit">Yükle</button></form>
+ <div class="scard-row">
+ <div class="scard ${d.files.some(f => f.filename.startsWith('KVKK_Onay')) ? 'ok' : 'warn'}"><div class="sc-l">KVKK & Anamnez</div><div class="sc-v">${d.files.some(f => f.filename.startsWith('KVKK_Onay')) ? 'Onaylı ✓' : 'Bekliyor'}</div><div class="mut">${(d.anamnesis || []).filter(a => a.status === 'submitted').length} anamnez</div></div>
+ <div class="scard ${d.rfqs.some(r => r.status === 'responded') ? 'ok' : d.rfqs.length ? 'warn' : ''}"><div class="sc-l">Medikal / RFQ</div><div class="sc-v">${d.rfqs.filter(r => r.status === 'responded').length}/${d.rfqs.length} yanıt</div><div class="mut">${esc(d.rfqs[0]?.specialty || '')}</div></div>
+ <div class="scard ${latestOffer && latestOffer.status === 'paid' ? 'ok' : latestOffer ? 'warn' : ''}"><div class="sc-l">Sözleşme & Ödeme</div><div class="sc-v">${latestOffer ? fmt(latestOffer.total) + ' · ' + latestOffer.status : 'Teklif yok'}</div><div class="mut">${latestOffer && latestOffer.e_signature ? esc(latestOffer.e_signature) : ''}</div></div>
+ <div class="scard ${flights.length ? 'ok' : ''}"><div class="sc-l">Lojistik</div><div class="sc-v">${flights.length ? '✈ ' + esc(flights[0].ref_label || 'Kayıtlı') : 'Rezervasyon yok'}</div><div class="mut">${hotels.length ? ' ' + esc(hotels[0].ref_label || '') : ''}${d.driver_tasks.length ? ' · ' + d.driver_tasks.filter(t => t.status === 'done').length + '/' + d.driver_tasks.length + ' transfer' : ''}</div></div>
+ <div class="scard ${d.checklist.complete ? 'ok' : 'warn'}"><div class="sc-l">Finans & Teşvik</div><div class="sc-v">Cari: ${fmt(cari.balance)}</div><div class="mut">${d.checklist.docs.filter(x => !x.present).length ? d.checklist.docs.filter(x => !x.present).length + ' eksik evrak' : 'Evraklar tam ✓'}</div></div>
  </div>
- <div class="card"><h3>Özet & Kısayollar</h3>
- ${conv ? `<div class="ws-row"><span>${CH_ICON[conv.channel] || conv.channel} ${FLAG[conv.language] || ''} ${esc(conv.agent_name || 'atanmadı')}</span><span class="sla" data-deadline="${conv.sla_deadline || ''}" data-responded="${conv.sla_responded}"></span></div>` : '<div class="mut">Görüşme yok</div>'}
- ${d.rfqs.length ? `<div class="ws-row"><span>RFQ</span><span>${d.rfqs.filter(r => r.status === 'responded').length}/${d.rfqs.length} yanıt</span></div>` : ''}
- ${latestOffer ? `<div class="ws-row"><span>Teklif #${latestOffer.id}</span><span class="tag">${latestOffer.status} · ${fmt(latestOffer.total)}</span></div>` : ''}
- ${flights.map(b => `<div class="ws-row"><span>✈ ${esc(b.ref_label || '')}</span><span class="flight-live" id="dfs-${b.id}">${esc(b.flight_status || 'Scheduled')}</span></div>`).join('')}
- ${hotels.map(b => `<div class="ws-row"><span> ${esc(b.ref_label || '')}</span><span class="mut">${fmt(b.price)}</span></div>`).join('')}
- ${d.bookings.filter(b => b.kind === 'insurance').map(b => `<div class="ws-row"><span> ${esc(b.ref_label || '')}</span><span class="mut">${fmt(b.price)}</span></div>`).join('')}
- <div class="ws-actions">
- <button class="btn ghost mini" onclick="qa('hotels','#hotel-patient',${p.id})">+ Otel Rezervasyonu</button>
- <button class="btn ghost mini" onclick="qa('flights','#bk-patient',${p.id})">+ Uçuş Kaydı</button>
- <button class="btn ghost mini" onclick="qa('flights','#ins-patient',${p.id})">+ Poliçe Düzenle</button>
- <button class="btn ghost mini" onclick="qa('transfer','#tr-patient',${p.id})">+ VIP Transfer</button>
- <button class="btn ghost mini" onclick="qa('tour','#tour-patient',${p.id})">+ Kültürel Gezi</button>
- <button class="btn ghost mini" onclick="startClaim(${p.id})">Komplikasyon Hasar Dosyası</button>
- <button class="btn ghost mini" onclick="visaLetter(${p.id})">Medikal Davetiye Üret</button>
- <button class="btn ghost mini" onclick="patientPass(${p.id})">Hasta Takip Linki</button>
+ <div class="ws-actions" style="margin:10px 0 0">
+ <button class="btn primary mini" onclick="startCall(${p.id},'call')"> Çağrı</button>
+ <button class="btn ghost mini" onclick="startCall(${p.id},'video')"> Görüntülü</button>
+ <button class="btn ghost mini" onclick="startCall(${p.id},'callback')">⏰ Geri Arama</button>
+ <button class="btn ghost mini" onclick="aiTranslate(${p.id})"> AI Çeviri</button>
+ <button class="btn ghost mini" onclick="nightAgent(${p.id})"> Gece AI</button>
+ <button class="btn ghost mini" onclick="sendPush(${p.id})"> Push</button>
  <button class="btn ghost mini" onclick="leadScore(${p.id})">AI Skor</button>
  <button class="btn ghost mini" onclick="aiAnalysis(${p.id})">AI Ön Analiz</button>
- <button class="btn ghost mini" onclick="marketingConsent(${p.id})">${p.marketing_consent ? 'Pazarlama İzni ✓' : 'Görsel İzin Al'}</button>
- </div>
- ${d.visa_rule ? `<div class="chip ok" style="margin:8px 0"> ${esc(d.visa_rule.rule)}</div>` : ''}
- ${d.usha && d.usha.some(u => u.usha_ref) ? `<div class="chip ok" style="margin:8px 0"> USHAŞ bildirildi · ${esc(d.usha.find(u => u.usha_ref).usha_ref)}</div>` : ''}
- <div class="ws-actions" style="margin-top:10px">
  ${latestOffer && latestOffer.status === 'sent' ? `<button class="btn ghost mini" onclick="offerAction(${latestOffer.id},'approve');setTimeout(()=>openDrawer(${p.id}),400)"> Mobil onay</button>` : ''}
  ${latestOffer && latestOffer.status === 'approved' ? `<button class="btn primary mini" onclick="offerAction(${latestOffer.id},'pay');setTimeout(()=>openDrawer(${p.id}),400)"> Ödeme al</button>` : ''}
- </div>
- <h3 style="margin:14px 0 6px"> Pipeline Aksiyonları</h3>
- <div class="ws-actions">
- <button class="btn ghost mini" onclick="closeWs();goTab('inbox')"> Mesaj</button>
- <button class="btn ghost mini" onclick="sendAnamnesis(${p.id})"> Anamnez Linki</button>
- <button class="btn ghost mini" onclick="closeWs();goTab('medical');setTimeout(()=>{const s=document.getElementById('ai-patient');s.value='${p.id}';s.dispatchEvent(new Event('change'))},150)"> Doktor Teklifi</button>
- <button class="btn ghost mini" onclick="closeWs();goTab('builder')"> Paket & Teklif</button>
- <button class="btn ghost mini" onclick="createContract(${p.id})">Sözleşme & Kapora</button>
- <button class="btn ghost mini" onclick="closeWs();goTab('flights')">✈ Lojistik</button>
- <button class="btn ghost mini" onclick="closeWs();goTab('fatura')"> e-Fatura</button>
- <button class="btn ghost mini" onclick="closeWs();goTab('usha')"> USHAŞ</button>
- <a class="btn ghost mini" href="/api/incentive/export/${p.id}" target="_blank"> ZIP</a>
- </div>
- </div>
  </div>`;
  $('#workspace').classList.add('open');
+ // ilk sekmeyi yükle
+ $$('.wstab').forEach(x => x.classList.toggle('on', x.dataset.ws === 'timeline'));
+ ['timeline','medical','travel','finance'].forEach(t => $('#ws-' + t).classList.toggle('hidden', t !== 'timeline'));
+ loadWsPane('timeline', p.id, d);
 };
 window.setLead = async (id, s) => { await api('/api/patients/' + id, 'PATCH', { lead_status: s }); loadPatients(); loadKpis(); applyRole(); };
 window.uploadFile = async (pid, form) => {
@@ -436,7 +368,7 @@ async function loadRfqs() {
  $('#rfq-list').innerHTML = rfqs.map(r => `
  <div class="li li-col">
  <div style="display:flex;justify-content:space-between;align-items:center">
- <span><b>${esc(r.doctor_name)}</b> · ${esc(r.specialty)}<div class="mut">${esc(r.patient_name)} → ${esc(r.hospital)}</div></span>
+ <span><b>${esc(r.doctor_name)}</b> · ${esc(r.specialty)}<div class="mut"><span class="plink" data-pid="${r.patient_id}">${esc(r.patient_name)}</span> → ${esc(r.hospital)}</div></span>
  <span class="tag ${r.status === 'responded' ? 'green' : r.status === 'declined' ? 'red' : 'yellow'}">
  ${r.status === 'pending' ? ' bekliyor' : r.status === 'responded' ? '✓ yanıtlandı' : '✕ reddetti'}</span></div>
  ${r.view_password ? `<div class="mut" style="font-size:11px;margin-top:4px"> Görüntüleme şifresi: <b>${r.view_password}</b>
@@ -486,7 +418,7 @@ window.book = async (kind, label, price) => {
 async function loadBookings() {
  const bs = await api('/api/bookings');
  $('#booking-list').innerHTML = bs.map(b => `
- <div class="li"><span>${{ hotel: '', flight: '✈', transfer: '' }[b.kind] || ''} ${esc(b.patient_name)} — ${esc(b.ref_label || b.kind)}
+ <div class="li"><span>${{ hotel: '', flight: '✈', transfer: '' }[b.kind] || ''} <span class="plink" data-pid="${b.patient_id}">${esc(b.patient_name)}</span> — ${esc(b.ref_label || b.kind)}
  <div class="mut">${fmt(b.price)}</div>
  ${b.kind === 'flight' ? `<div class="flight-prog"><div id="fp-${b.id}" style="width:0%"></div></div><div class="mut" id="fs-${b.id}"></div>` : ''}
  ${b.kind === 'transfer' ? `<button class="btn ghost mini" onclick="trackTransfer(${b.id})">Haritada izle</button>` : ''}</span>
@@ -606,10 +538,10 @@ async function loadAccounting() {
  <div class="li"><span>${esc(m.name)}<div class="mut">Gelir ${fmt(m.revenue)} · Maliyet ${fmt(m.cost)}</div></span>
  <b style="color:${m.margin >= 0 ? 'var(--ok)' : 'var(--bad)'}">${fmt(m.margin)}</b></div>`).join('') || '<div class="mut">Henüz hareket yok</div>';
  $('#txn-list').innerHTML = txns.slice(0, 30).map(t => `
- <div class="li"><span>${t.kind === 'income' ? '➕' : '➖'} ${esc(t.description || t.category)}<div class="mut">${esc(t.patient_name || '')} · ${esc(t.account_name || '')}${t.vkn ? ' · VKN ' + esc(t.vkn) : ''}</div></span>
+ <div class="li"><span>${t.kind === 'income' ? '➕' : '➖'} ${esc(t.description || t.category)}<div class="mut"><span class="plink" data-pid="${t.patient_id}">${esc(t.patient_name || '')}</span> · ${esc(t.account_name || '')}${t.vkn ? ' · VKN ' + esc(t.vkn) : ''}</div></span>
  <b style="color:${t.kind === 'income' ? 'var(--ok)' : 'var(--bad)'}">${t.kind === 'income' ? '+' : '−'}${fmt(t.amount)}</b></div>`).join('') || '<div class="mut">—</div>';
  $('#invoice-list').innerHTML = invs.map(i => `
- <div class="li"><span><b>${i.number}</b> — ${esc(i.patient_name || '')}
+ <div class="li"><span><b>${i.number}</b> — <span class="plink" data-pid="${i.patient_id}">${esc(i.patient_name || '')}</span>
  <div class="mut">${i.direction === 'purchase' ? 'GELEN' : 'SATIŞ'} · ${i.scenario || ''} · ${fmt(i.amount)}${i.kdv_amount ? ' (KDV ' + fmt(i.kdv_amount) + ')' : ''} · ${i.issued_at || ''}</div></span>
  <span>${i.status === 'sent_ivd' ? `<span class="tag green">İVD ✓ ${i.ivd_ref}</span>` : `<button class="btn ghost mini" onclick="sendIvd(${i.id})">İVD'ye gönder</button>`}</span></div>`).join('') || '<div class="mut">—</div>';
 }
@@ -656,10 +588,10 @@ socket.on('usha', () => { toast('USHAŞ bildirimi onaylandı ✓'); loadComplian
 async function loadCompliance() {
  const [us, inc] = await Promise.all([api('/api/usha'), api('/api/incentive')]);
  $('#usha-list').innerHTML = '<h2 style="margin-top:14px">Bildirim Geçmişi</h2>' + us.map(u => `
- <div class="li"><span>${esc(u.patient_name)}<div class="mut">${esc(u.service_detail || '').slice(0, 60)}</div></span>
+ <div class="li"><span><span class="plink" data-pid="${u.patient_id}">${esc(u.patient_name)}</span><div class="mut">${esc(u.service_detail || '').slice(0, 60)}</div></span>
  <span class="tag ${u.status === 'acknowledged' ? 'green' : 'yellow'}">${u.status === 'acknowledged' ? '✓ ' + u.usha_ref : 'gönderiliyor'}</span></div>`).join('');
  $('#inc-list').innerHTML = '<h2 style="margin-top:14px">Teşvik Paketleri</h2>' + inc.map(i => `
- <div class="li"><span>${esc(i.patient_name)}</span><span class="tag green">${i.status} · ${i.created_at}</span></div>`).join('');
+ <div class="li"><span><span class="plink" data-pid="${i.patient_id}">${esc(i.patient_name)}</span></span><span class="tag green">${i.status} · ${i.created_at}</span></div>`).join('');
 }
 $('#inc-check').onclick = async () => {
  const pid = +$('#inc-patient').value;
@@ -760,7 +692,7 @@ async function loadOffers() {
  const offers = await api('/api/offers');
  $('#offer-list').innerHTML = offers.map(o => `
  <div class="li li-col">
- <div style="display:flex;justify-content:space-between"><b>${esc(o.patient_name)}</b>
+ <div style="display:flex;justify-content:space-between"><b class="plink" data-pid="${o.patient_id}">${esc(o.patient_name)}</b>
  <span class="tag ${{ draft: 'yellow', sent: 'blue', approved: 'green', paid: 'green' }[o.status]}">${o.status}</span></div>
  <div class="mut">${(JSON.parse(o.items || '[]')).map(i => esc(i.desc) + ' ' + fmt(i.price)).join(' · ')}</div>
  <div class="mut">Post-op: ${esc(o.postop_name || '—')} · Toplam <b>${fmt(o.total)}</b></div>
@@ -801,7 +733,7 @@ async function loadLogisticsV2() {
 async function loadAssignments() {
  const as = await api('/api/assignments');
  $('#as-list').innerHTML = as.map(a => `
- <div class="li"><span>${esc(a.agent_name)}<div class="mut">${a.date} ${a.slot} · ${esc(a.task || '')} · ${esc(a.patient_name || '')}</div></span></div>`).join('') || '<div class="mut">Atama yok</div>';
+ <div class="li"><span>${esc(a.agent_name)}<div class="mut">${a.date} ${a.slot} · ${esc(a.task || '')} · <span class="plink" data-pid="${a.patient_id}">${esc(a.patient_name || '')}</span></div></span></div>`).join('') || '<div class="mut">Atama yok</div>';
 }
 $('#as-create').onclick = async () => {
  const r = await api('/api/assignments', 'POST', { agent_id: +$('#as-agent').value, patient_id: +$('#as-patient').value,
@@ -813,7 +745,7 @@ async function loadDriverTasks() {
  const aid = $('#drv-agent').value; if (!aid) return;
  const ts = await api('/api/driver/tasks?agent_id=' + aid);
  $('#drv-tasks').innerHTML = ts.map(t => `
- <div class="li"><span>${t.seq}. ${esc(t.label)}<div class="mut">${esc(t.patient_name || '')} · ${esc(t.ref_label || '')}</div></span>
+ <div class="li"><span>${t.seq}. ${esc(t.label)}<div class="mut"><span class="plink" data-pid="${t.patient_id}">${esc(t.patient_name || '')}</span> · ${esc(t.ref_label || '')}</div></span>
  <span>${t.status === 'done' ? '<span class="tag green">✓</span>'
  : t.status === 'in_progress' ? '<span class="tag yellow">yolda</span>'
  : `<button class="btn ghost mini" onclick="drvTask(${t.id},'start')">Başlat</button>`}
@@ -1074,7 +1006,7 @@ async function loadField() {
  const arr = await api('/api/field/arrivals');
  $('#arrival-list').innerHTML = arr.map(a => `
  <div class="li" onclick="$('#kiosk-patient').value=${a.patient_id}" style="cursor:pointer">
- <span>✈ ${esc(a.ref_label || '')} — <b>${esc(a.patient_name)}</b><div class="mut">${esc(a.nationality)} · ${esc(a.passport_no || 'pasaport yok')}</div></span>
+ <span>✈ ${esc(a.ref_label || '')} — <b class="plink" data-pid="${a.patient_id}">${esc(a.patient_name)}</b><div class="mut">${esc(a.nationality)} · ${esc(a.passport_no || 'pasaport yok')}</div></span>
  <span class="flight-live" id="dfs-${a.booking_id}">${esc(a.flight_status || 'Scheduled')}</span></div>`).join('') || '<div class="mut">Planlı karşılama yok</div>';
  $('#kiosk-patient').innerHTML = patients.map(p => `<option value="${p.id}">${esc(p.name)} — ${esc(p.nationality)}</option>`).join('');
 }
@@ -1160,7 +1092,7 @@ async function loadBuilder() {
 }
 function renderOffers(offs) {
  $('#pb-offers').innerHTML = offs.slice(0, 12).map(o => `
- <div class="li"><span>${esc(o.patient_name)} — ${fmt(o.total)}
+ <div class="li"><span><span class="plink" data-pid="${o.patient_id}">${esc(o.patient_name)}</span> — ${fmt(o.total)}
  <div class="mut">${o.lang || 'en'} · ${o.delivered_via || '—'} · ${esc(o.postop_name || '')}${o.fx_locked ? ' · kur kilit ₺' + o.fx_locked : ''}</div></span>
  <span><span class="chip">${o.status}</span>
  ${o.share_token ? `<button class="btn ghost mini" onclick="deliverOffer(${o.id},'whatsapp')">WhatsApp</button>
@@ -1221,7 +1153,7 @@ window.deliverOffer = async (id, ch) => {
 async function loadTour() {
  const bs = await api('/api/bookings');
  $('#tour-list').innerHTML = bs.filter(b => b.kind === 'tour').map(b => `
- <div class="li"><span> ${esc(b.ref_label)}<div class="mut">${esc(b.patient_name || '')}</div></span><b>${fmt(b.price)}</b></div>`).join('')
+ <div class="li"><span> ${esc(b.ref_label)}<div class="mut"><span class="plink" data-pid="${b.patient_id}">${esc(b.patient_name || '')}</span></div></span><b>${fmt(b.price)}</b></div>`).join('')
  || '<div class="mut">Planlanan tur yok</div>';
 }
 window.createTour = async () => {
@@ -1251,7 +1183,7 @@ async function loadFieldTasks() {
  const [ts, ags] = await Promise.all([api('/api/field-tasks'), api('/api/translators')]);
  $('#ft-agent').innerHTML = ags.map(g => `<option value="${g.id}">${esc(g.name)} (${g.role === 'ops' ? 'Operasyon' : 'Tercüman'})</option>`).join('');
  $('#ft-patient').innerHTML = patients.map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
- el.innerHTML = ts.slice(0, 15).map(t => `<div class="li"><span><b>${esc(t.agent_name || '—')}</b> → ${esc(t.patient_name || '—')}
+ el.innerHTML = ts.slice(0, 15).map(t => `<div class="li"><span><b>${esc(t.agent_name || '—')}</b> → <span class="plink" data-pid="${t.patient_id}">${esc(t.patient_name || '—')}</span>
  <div class="mut">${esc(t.task)} · hakediş ${fmt(t.payout)}</div></span>
  ${t.location_ok ? '<span class="chip ok">Konum onaylı · ödendi</span>' : `<button class="btn primary mini" onclick="api('/api/field-tasks/${t.id}/confirm','POST').then(loadFieldTasks)">Karşılama onayı ver</button>`}</div>`).join('') || '<div class="mut">Görev yok</div>';
 }
@@ -1285,7 +1217,7 @@ async function renderRecent() {
  } catch { return { p, done: 1 }; }
  }));
  el.innerHTML = rows.map(({p, done}) => `<div class="li" style="align-items:center;gap:14px">
- <span style="min-width:150px"><b>${esc(p.name)}</b><div class="mut">${esc(p.lead_status || '')}</div></span>
+ <span style="min-width:150px"><b class="plink" data-pid="${p.id}">${esc(p.name)}</b><div class="mut">${esc(p.lead_status || '')}</div></span>
  <span style="flex:1;display:flex;gap:4px">${STEPS.map((s,i)=>`<span title="${s}" style="flex:1;height:6px;border-radius:3px;background:${i<done?'var(--acc)':'var(--line)'}"></span>`).join('')}</span>
  <span class="mut" style="font-size:11px;min-width:70px;text-align:right">${done}/7 adım</span>
  <button class="btn ghost mini" onclick="openDrawer(${p.id})">Dosya</button></div>`).join('') || '<div class="mut">Aktivite yok</div>';
@@ -1459,43 +1391,78 @@ let WS_PID = null;
 $$('.wstab').forEach(b => b.onclick = () => {
  $$('.wstab').forEach(x => x.classList.toggle('on', x === b));
  const t = b.dataset.ws;
- $('#ws-steps').classList.toggle('hidden', t !== 'ozet');
- $('#ws-evrak').classList.toggle('hidden', t !== 'evrak');
- $('#ws-iletisim').classList.toggle('hidden', t !== 'iletisim');
- $('#ws-audit').classList.toggle('hidden', t !== 'audit');
- if (t !== 'ozet' && WS_PID) loadWsPane(t, WS_PID);
+ ['timeline','medical','travel','finance'].forEach(k => $('#ws-' + k).classList.toggle('hidden', k !== t));
+ if (WS_PID) loadWsPane(t, WS_PID);
 });
-async function loadWsPane(t, pid) {
- if (t === 'evrak') {
- const d = await api('/api/patients/' + pid + '/dossier');
- $('#ws-evrak').innerHTML = `<div class="card"><h3> Medikal Evraklar</h3>
- ${d.files.map(f => `<div class="checkline done"><span class="tick"></span>${esc(f.filename)} <span class="mut">${esc(f.category)}</span></div>`).join('') || '<div class="mut">Dosya yok</div>'}
- <h3 style="margin:14px 0 6px"> Teşvik Paketi</h3>
- <a class="btn ghost mini" href="/api/incentive/export/${pid}" target="_blank">DYS ZIP indir</a></div>`;
- } else if (t === 'iletisim') {
- const [calls, d] = await Promise.all([api('/api/calls?patient_id=' + pid), api('/api/patients/' + pid + '/dossier')]);
- const conv = d.conversations ? d.conversations[0] : null;
- $('#ws-iletisim').innerHTML = `<div class="card">
- <div class="ws-actions" style="margin-bottom:12px">
- <button class="btn primary mini" onclick="startCall(${pid},'call')"> Çağrı Oluştur</button>
- <button class="btn ghost mini" onclick="startCall(${pid},'video')"> Görüntülü Görüşme</button>
- <button class="btn ghost mini" onclick="startCall(${pid},'callback')">⏰ Geri Arama Alarmı</button>
- <button class="btn ghost mini" onclick="aiTranslate(${pid})"> AI Çeviri</button>
- <button class="btn ghost mini" onclick="nightAgent(${pid})"> Gece AI</button>
- <button class="btn ghost mini" onclick="sendPush(${pid})"> Push Bildirim</button>
+async function loadWsPane(t, pid, cached) {
+ const d = cached || await api('/api/patients/' + pid + '/dossier');
+ const p = d.patient;
+ if (t === 'timeline') {
+ const [logs, calls] = await Promise.all([api('/api/audit?patient_id=' + pid), api('/api/calls?patient_id=' + pid)]);
+ const ev = [
+ ...d.rfqs.map(r => ({ ts: r.created_at, ico: '', txt: `<b>RFQ → ${esc(r.doctor_name)}</b> <span class="mut">${esc(r.specialty)}</span> <span class="tag ${r.status === 'responded' ? 'green' : r.status === 'declined' ? 'red' : 'yellow'}">${r.status}${r.quote_price ? ' · ' + fmt(r.quote_price) : ''}</span>` })),
+ ...d.offers.map(o => ({ ts: o.created_at, ico: '', txt: `<b>Teklif #${o.id}</b> ${fmt(o.total)} <span class="tag ${{ draft: 'yellow', sent: 'blue', approved: 'violet', paid: 'green' }[o.status] || 'yellow'}">${o.status}</span>` })),
+ ...d.bookings.map(b => ({ ts: b.created_at, ico: { hotel: '', flight: '✈', transfer: '', insurance: ' ' }[b.kind] || '', txt: `<b>${esc(b.ref_label || b.kind)}</b> <span class="mut">${fmt(b.price)}</span>` })),
+ ...calls.map(c => ({ ts: c.created_at, ico: c.type === 'video' ? ' ' : c.type === 'callback' ? '⏰' : ' ', txt: `<b>${c.type === 'video' ? 'Görüntülü görüşme' : c.type === 'callback' ? 'Geri arama' : 'Çağrı'}</b> ${esc(c.note || '')} <span class="mut">${esc(c.created_by)}</span>` })),
+ ...logs.map(l => ({ ts: l.ts, ico: ' ', txt: `<b>${esc(l.user_label || l.role)}</b> — ${esc(l.action)}` })),
+ ].sort((a, b) => (b.ts || '').localeCompare(a.ts || ''));
+ $('#ws-timeline').innerHTML = `<div class="card"><h3> Zaman Çizelgesi</h3>
+ ${ev.map(e => `<div class="tl-row"><span class="tl-ico">${e.ico}</span><div class="tl-body"><div class="tl-txt">${e.txt}</div><div class="tl-ts mut">${esc(e.ts || '')}</div></div></div>`).join('') || '<div class="mut">Henüz aktivite yok</div>'}</div>`;
+ } else if (t === 'medical') {
+ const pacs = d.files.filter(f => f.category === 'radiology');
+ const docs = d.files.filter(f => f.category !== 'radiology');
+ $('#ws-medical').innerHTML = `<div class="card"><h3> Medikal & PACS</h3>
+ ${d.anamnesis && d.anamnesis.length ? d.anamnesis.map(a => a.status === 'submitted'
+ ? `<div class="scard ok" style="margin-bottom:8px"><div class="sc-l">Anamnez — ${esc(a.specialty || 'Genel')}</div><div class="mut">${esc(a.submitted_at || '')}</div>${Object.entries(JSON.parse(a.answers || '{}')).slice(0, 8).map(([k, v]) => `<div style="font-size:12px"><b>${esc(k)}:</b> ${esc(v)}</div>`).join('')}</div>`
+ : `<div class="scard warn" style="margin-bottom:8px"><div class="sc-l">Anamnez bekliyor</div><a href="/a/${a.token}" target="_blank">/a/${a.token}</a></div>`).join('') : '<div class="mut">Anamnez kaydı yok</div>'}
+ <h3 style="margin:14px 0 6px"> PACS / Radyoloji</h3>
+ ${pacs.map(f => `<div class="checkline done"><span class="tick"> </span>${esc(f.filename)} <span class="mut">${esc(f.uploaded_at || '')}</span>${f.path ? ` <a href="${f.path}" target="_blank">görüntüle</a>` : ''}</div>`).join('') || '<div class="mut">Röntgen/görüntü yok</div>'}
+ <h3 style="margin:14px 0 6px"> Hekim Değerlendirmeleri</h3>
+ ${d.rfqs.map(r => `<div class="checkline ${r.status === 'responded' ? 'done' : ''}"><span class="tick">${r.status === 'responded' ? '✓' : '◌'}</span>
+ <b>${esc(r.doctor_name)}</b> · ${esc(r.specialty)} <span class="mut">${esc(r.hospital)}</span>
+ ${r.quote_price ? `<span class="tag green">${fmt(r.quote_price)}</span>` : ''}</div>`).join('') || '<div class="mut">RFQ yok</div>'}
+ <h3 style="margin:14px 0 6px"> Diğer Evraklar</h3>
+ ${docs.map(f => `<div class="checkline done"><span class="tick"></span>${esc(f.filename)} <span class="mut">${esc(f.category)}</span>${f.path ? ` <a href="${f.path}" target="_blank">indir</a>` : ''}</div>`).join('') || '<div class="mut">Dosya yok</div>'}
+ <form onsubmit="return uploadFile(${p.id},this)" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+ <input type="file" name="file" class="input" style="flex:2;margin:0">
+ <select name="category" class="input" style="flex:1;margin:0"><option value="radiology">Röntgen/PACS</option><option value="passport">Pasaport</option><option value="boarding_pass">Boarding Pass</option><option value="invoice">Fatura</option><option value="contract">Sözleşme</option><option value="other">Diğer</option></select>
+ <button class="btn ghost mini" type="submit">Yükle</button></form></div>`;
+ } else if (t === 'travel') {
+ const flights = d.bookings.filter(b => b.kind === 'flight'), hotels = d.bookings.filter(b => b.kind === 'hotel'),
+ transfers = d.bookings.filter(b => b.kind === 'transfer'), ins = d.bookings.filter(b => b.kind === 'insurance');
+ $('#ws-travel').innerHTML = `<div class="card"><h3>✈ Seyahat & Lojistik</h3>
+ ${d.visa_rule ? `<div class="scard ${d.visa_rule.rule && d.visa_rule.rule.includes('vizesiz') ? 'ok' : 'warn'}" style="margin-bottom:10px"><div class="sc-l">Vize Durumu</div><div class="sc-v">${esc(d.visa_rule.rule)}</div><div class="mut">${esc(p.nationality)}</div></div>` : `<div class="scard warn" style="margin-bottom:10px"><div class="sc-l">Vize Durumu</div><div class="sc-v">Kural tanımsız</div></div>`}
+ <div class="scard-row">
+ <div class="scard ${flights.length ? 'ok' : ''}"><div class="sc-l">Uçuş</div>${flights.map(b => `<div class="sc-v">✈ ${esc(b.ref_label || '')}</div><div class="mut">${esc(b.flight_status || 'Scheduled')}</div>`).join('') || '<div class="mut">Kayıt yok</div>'}</div>
+ <div class="scard ${hotels.length ? 'ok' : ''}"><div class="sc-l">Otel</div>${hotels.map(b => `<div class="sc-v"> ${esc(b.ref_label || '')}</div><div class="mut">${fmt(b.price)}</div>`).join('') || '<div class="mut">Kayıt yok</div>'}</div>
+ <div class="scard ${transfers.length || d.driver_tasks.length ? 'ok' : ''}"><div class="sc-l">VIP Transfer</div>${d.driver_tasks.map(t => `<div class="sc-v"> ${esc(t.label)}</div><div class="mut">${esc(t.agent_name || '')} · ${t.status === 'done' ? '✓ tamam' : t.status === 'in_progress' ? 'yolda' : 'bekliyor'}</div>`).join('') || '<div class="mut">Görev yok</div>'}</div>
+ <div class="scard ${ins.length ? 'ok' : ''}"><div class="sc-l">Sigorta</div>${ins.map(b => `<div class="sc-v"> ${esc(b.ref_label || '')}</div><div class="mut">${fmt(b.price)}</div>`).join('') || '<div class="mut">Poliçe yok</div>'}</div>
  </div>
- ${calls.map(c => `<div class="checkline done"><span class="tick">${c.type === 'video' ? ' ' : c.type === 'callback' ? '⏰' : ' '}</span>
- <b>${c.type === 'video' ? 'Görüntülü' : c.type === 'callback' ? 'Geri arama' : 'Çağrı'}</b>
- ${esc(c.note || '')} <span class="mut">${esc(c.created_at)} · ${esc(c.created_by)}</span></div>`).join('') || '<div class="mut">Çağrı kaydı yok</div>'}
- ${conv ? `<h3 style="margin:14px 0 6px"> Son Mesajlaşma</h3><div class="mut">${CH_ICON[conv.channel] || ''} ${esc(conv.agent_name || 'atanmadı')}</div>` : ''}
- </div>`;
- } else if (t === 'audit') {
- const logs = await api('/api/audit?patient_id=' + pid);
- $('#ws-audit').innerHTML = `<div class="card"><h3> İşlem Geçmişi</h3>
- ${logs.map(l => `<div class="checkline"><span class="tick">·</span>
- <span class="mut">[${esc(l.ts)}]</span> <b>${esc(l.user_label || l.role)}</b> — ${esc(l.action)}
- ${l.detail ? `<div class="mut" style="font-size:11px">${esc(l.detail.slice(0, 120))}</div>` : ''}</div>`).join('')
- || '<div class="mut">Kayıt yok</div>'}</div>`;
+ <div class="ws-actions" style="margin-top:10px">
+ <button class="btn ghost mini" onclick="qa('flights','#bk-patient',${p.id})">+ Uçuş</button>
+ <button class="btn ghost mini" onclick="qa('hotels','#hotel-patient',${p.id})">+ Otel</button>
+ <button class="btn ghost mini" onclick="qa('transfer','#tr-patient',${p.id})">+ VIP Transfer</button>
+ <button class="btn ghost mini" onclick="qa('flights','#ins-patient',${p.id})">+ Poliçe</button>
+ <button class="btn ghost mini" onclick="visaLetter(${p.id})">Medikal Davetiye</button>
+ <button class="btn ghost mini" onclick="patientPass(${p.id})"> Takip Linki</button></div></div>`;
+ } else if (t === 'finance') {
+ const cari = await api('/api/patients/' + pid + '/cari');
+ $('#ws-finance').innerHTML = `<div class="card"><h3> Finans & İmzalar</h3>
+ <div class="scard-row">
+ <div class="scard ${cari.balance >= 0 ? 'ok' : 'bad'}"><div class="sc-l">Hasta Carisi</div><div class="sc-v">${fmt(cari.balance)}</div></div>
+ <div class="scard ${d.offers.some(o => o.status === 'paid') ? 'ok' : d.offers.length ? 'warn' : ''}"><div class="sc-l">Teklif/Sözleşme</div>${d.offers.slice(0, 3).map(o => `<div class="sc-v">#${o.id} · ${fmt(o.total)} <span class="tag ${{ draft: 'yellow', sent: 'blue', approved: 'violet', paid: 'green' }[o.status] || 'yellow'}">${o.status}</span></div>`).join('') || '<div class="mut">Yok</div>'}</div>
+ <div class="scard ${d.invoices.some(i => i.status === 'sent_ivd') ? 'ok' : 'warn'}"><div class="sc-l">e-Fatura / İVD</div>${d.invoices.map(i => `<div class="sc-v">${i.number} · ${fmt(i.amount)}</div><div class="mut">${i.status === 'sent_ivd' ? 'İVD ✓' : esc(i.status)}</div>`).join('') || '<div class="mut">Fatura yok</div>'}</div>
+ </div>
+ <h3 style="margin:14px 0 6px">İmza & Onam Belgeleri</h3>
+ ${d.files.filter(f => ['contract', 'passport'].includes(f.category) || f.filename.match(/KVKK|Onay|Sozlesme|sign/i)).map(f => `<div class="checkline done"><span class="tick">✍</span>${esc(f.filename)} <span class="mut">${esc(f.category)}</span></div>`).join('') || '<div class="mut">İmzalı belge yok</div>'}
+ <h3 style="margin:14px 0 6px">İşlem Geçmişi (Cari)</h3>
+ ${d.transactions.slice(0, 10).map(t => `<div class="checkline"><span class="tick">${t.kind === 'income' ? '➕' : '➖'}</span>${esc(t.description || t.category)} <b>${fmt(t.amount)}</b> <span class="mut">${esc(t.created_at || '')}</span></div>`).join('') || '<div class="mut">Hareket yok</div>'}
+ <div class="ws-actions" style="margin-top:10px">
+ <button class="btn ghost mini" onclick="closeWs();goTab('builder')"> Paket & Teklif</button>
+ <button class="btn ghost mini" onclick="createContract(${p.id})">Sözleşme & Kapora</button>
+ <button class="btn ghost mini" onclick="closeWs();goTab('fatura')"> e-Fatura</button>
+ <a class="btn ghost mini" href="/api/incentive/export/${p.id}" target="_blank"> DYS ZIP</a>
+ <button class="btn ghost mini" onclick="closeWs();goTab('usha')"> USHAŞ</button></div></div>`;
  }
 }
 window.startCall = async (pid, type) => {
@@ -1528,7 +1495,7 @@ async function loadAuditLog() {
 }
 async function loadOpcal() {
  const { ops, postops } = await api('/api/calendar/ops');
- $('#oc-list').innerHTML = ops.map(o => `<div class="li"><span><b>${esc(o.label)}</b><div class="mut">${esc(o.patient_name)} · ${esc(o.room)} · ${esc(o.scheduled_at)}</div></span>
+ $('#oc-list').innerHTML = ops.map(o => `<div class="li"><span><b>${esc(o.label)}</b><div class="mut"><span class="plink" data-pid="${o.patient_id}">${esc(o.patient_name)}</span> · ${esc(o.room)} · ${esc(o.scheduled_at)}</div></span>
  <span class="tag ${o.status === 'scheduled' ? 'blue' : 'green'}">${esc(o.status)}</span></div>`).join('') || '<div class="mut">Planlanmış operasyon yok</div>';
  $('#oc-postop').innerHTML = postops.map(p => `<div class="li li-col"><b>${esc(p.name)}</b>
  ${p.checkpoints.map(c => `<div class="checkline ${c.done ? 'done' : 'miss'}"><span class="tick">${c.done ? '✓' : '◌'}</span>
