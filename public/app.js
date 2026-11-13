@@ -272,11 +272,22 @@ document.addEventListener('click', e => {
  if (el) { e.preventDefault(); openDrawer(+el.dataset.pid); }
 });
 
-window.GP = null; // Global Patient ID — paneller arası bağ
+// Global Patient Context store — tüm panelleri seçili hastaya senkronize eder
+window.PatientContext = {
+  id: null, patient: null, listeners: [],
+  set(id, patient = null) {
+    this.id = id; this.patient = patient;
+    document.dispatchEvent(new CustomEvent('patientcontext', { detail: { id, patient } }));
+    this.listeners.forEach(fn => { try { fn(id, patient); } catch (e) {} });
+  },
+  onChange(fn) { this.listeners.push(fn); },
+};
+window.GP = null;
 window.setGlobalPatient = pid => { GP = pid;
  // Hastayı içeren tüm select'leri global hastaya sabitle (sıfır tekrar giriş)
  $$('select').forEach(s => { if (s.id === 'ws-lead') return;
   if ([...s.options].some(o => +o.value === pid)) { if (+s.value !== pid) { s.value = pid; s.dispatchEvent(new Event('change')); } } });
+ PatientContext.set(pid);
 };
 window.openDrawer = async id => { WS_PID = id; setGlobalPatient(id);
  const d = await api(`/api/patients/${id}/dossier`);

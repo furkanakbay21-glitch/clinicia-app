@@ -1187,7 +1187,11 @@ async function refreshFx() {
   } catch (_) { /* keep seeded rates */ }
 }
 refreshFx();
-app.get('/api/fx', (req, res) => res.json(all('SELECT * FROM fx_rates')));
+const fxAdapter = require('./services/adapters/fxAdapter');
+app.get('/api/fx', async (req, res) => {
+  if (fxAdapter.configured()) { try { return res.json(await fxAdapter.rates()); } catch (e) {} }
+  res.json(all('SELECT * FROM fx_rates'));
+});
 
 // --- net profit calculator & commission rules ---
 app.get('/api/profit/:patientId', (req, res) => {
@@ -2120,13 +2124,14 @@ app.get('/api/audit', (req, res) => {
   res.json(all(`SELECT * FROM audit_logs ${pid?'WHERE patient_id='+Number(pid):''} ORDER BY id DESC LIMIT 200`));
 });
 
-app.post('/api/calls', (req, res) => {
+const videoAdapter = require('./services/adapters/videoAdapter');
+app.post('/api/calls', async (req, res) => {
   const b = req.body || {};
   const p = get('SELECT * FROM patients WHERE id=?', b.patient_id);
   if (!p) return res.status(404).json({ error: 'patient not found' });
   const r = run('INSERT INTO call_logs (patient_id,type,note,callback_at,created_by) VALUES (?,?,?,?,?)',
     p.id, b.type || 'call', b.note || null, b.callback_at || null, req.headers['x-user-role'] || 'admin');
-  const link = b.type === 'video' ? '/v/' + crypto.randomBytes(8).toString('hex') : null;
+  const link = b.type === 'video' ? (await videoAdapter.createRoom(p)).room : null;
   audit(req, 'call:' + (b.type || 'call'), b.note || link || '', p.id);
   io.emit('call', { patient_id: p.id, type: b.type });
   res.json({ ok: true, id: r.lastInsertRowid, room: link });
@@ -2192,8 +2197,12 @@ const TR_DICT = { en: { 'hello': 'merhaba', 'pain': 'ağrı', 'price': 'fiyat', 
   ru: { 'привет': 'merhaba', 'боль': 'ağrı', 'цена': 'fiyat', 'отель': 'otel', 'операция': 'ameliyat', 'спасибо': 'teşekkür' } };
 const OUT_TPL = { en: t => `[EN] Dear patient, ${t}`, de: t => `[DE] Sehr geehrter Patient, ${t}`, fr: t => `[FR] Cher patient, ${t}`,
   ar: t => `[AR] المريض العزيز، ${t}`, ru: t => `[RU] Уважаемый пациент, ${t}` };
-app.post('/api/ai/translate', (req, res) => {
+const aiAdapter = require('./services/adapters/aiAdapter');
+app.post('/api/ai/translate', async (req, res) => {
   const { text = '', direction = 'in', lang = 'en' } = req.body || {};
+  if (aiAdapter.configured()) {
+    try { const out = await aiAdapter.translate(text, direction, lang); if (out) return res.json(out); } catch (e) {}
+  }
   if (direction === 'in') {
     const dict = TR_DICT[lang] || {};
     let tr = text.toLowerCase();
@@ -2205,13 +2214,15 @@ app.post('/api/ai/translate', (req, res) => {
 });
 
 // --- Night Shift AI Lead Agent ---
-app.post('/api/night-agent', (req, res) => {
+app.post('/api/night-agent', async (req, res) => {
   const { patient_id } = req.body || {};
   const p = get('SELECT * FROM patients WHERE id=?', patient_id);
   if (!p) return res.status(404).end();
   const conv = get('SELECT * FROM conversations WHERE patient_id=? ORDER BY id DESC LIMIT 1', p.id)
     || { id: run('INSERT INTO conversations (patient_id,channel,subject) VALUES (?,?,?)', p.id, 'whatsapp', 'Gece AI').lastInsertRowid };
-  const body = ` [AI Gece Asistanı] Sayın ${p.name}, mesajınız mesai dışında alındı — sizi karşıladım. Değerlendirme için lütfen rahatsızlık bölgenizin FOTOĞRAF ve/veya RÖNTGEN görüntüsünü bu sohbete yükleyin. Sabah 09:00'da danışmanınız sizinle iletişime geçecek. / [Night AI] Your message was received after hours — please upload photos/x-rays; your consultant will contact you at 09:00.`;
+  let body = null;
+  if (aiAdapter.configured()) { try { body = await aiAdapter.nightGreeting(p); } catch (e) {} }
+  if (!body) body = ` [AI Gece Asistanı] Sayın ${p.name}, mesajınız mesai dışında alındı — sizi karşıladım. Değerlendirme için lütfen rahatsızlık bölgenizin FOTOĞRAF ve/veya RÖNTGEN görüntüsünü bu sohbete yükleyin. Sabah 09:00'da danışmanınız sizinle iletişime geçecek. / [Night AI] Your message was received after hours — please upload photos/x-rays; your consultant will contact you at 09:00.`;
   run('INSERT INTO messages (conversation_id,direction,body,lang) VALUES (?,?,?,?)', conv.id, 'out', body, 'auto');
   run("INSERT INTO call_logs (patient_id,type,note,created_by) VALUES (?,?,?,'ai-night')", p.id, 'call', 'Gece vardiyası AI: fotoğraf/röntgen talep edildi, sabah vakası olarak işaretlendi');
   io.emit('message', { conversation_id: conv.id, message: { direction: 'out', body } });
@@ -2240,4 +2251,8 @@ const SELF_URL = process.env.RENDER_EXTERNAL_URL;
 if (SELF_URL) {
   setInterval(() => fetch(SELF_URL + '/api/kpis').then(r => console.log('[keepalive]', r.status)).catch(() => {}), 10 * 60 * 1000);
 }
+// --- API-First Gateway: 20 dış servis adaptörü (/api/gw/*) ---
+const gateway = require('./routes/gateway');
+app.use('/api/gw', gateway({ io, all, get, run, audit }));
+
 server.listen(PORT, () => console.log('HTA ERP listening on http://localhost:' + PORT));
